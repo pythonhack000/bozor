@@ -1,65 +1,152 @@
-import Image from "next/image";
+"use client";
+
+import Link from "next/link";
+import { ShieldCheck, Headset, BadgeCheck, Wallet, Search, ArrowRight, Wand2, HandCoins, CheckCircle2 } from "lucide-react";
+import { useI18n } from "@/lib/i18n-context";
+import { categories, getFeaturedListings } from "@/lib/data";
+import { CategoryCard } from "@/components/CategoryCard";
+import { ListingCard } from "@/components/ListingCard";
+
+const trustItems = [
+  { icon: ShieldCheck, titleKey: "home.trustGuaranteeTitle", descKey: "home.trustGuaranteeDesc" },
+  { icon: Headset, titleKey: "home.trustSupportTitle", descKey: "home.trustSupportDesc" },
+  { icon: BadgeCheck, titleKey: "home.trustSellersTitle", descKey: "home.trustSellersDesc" },
+  { icon: Wallet, titleKey: "home.trustPaymentTitle", descKey: "home.trustPaymentDesc" },
+];
+
+const steps = [
+  { icon: Search, titleKey: "home.step1Title", descKey: "home.step1Desc" },
+  { icon: Wallet, titleKey: "home.step2Title", descKey: "home.step2Desc" },
+  { icon: Wand2, titleKey: "home.step3Title", descKey: "home.step3Desc" },
+  { icon: CheckCircle2, titleKey: "home.step4Title", descKey: "home.step4Desc" },
+];
 
 export default function Home() {
+  const { t } = useI18n();
+  const featured = getFeaturedListings(8);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div>
+      <section className="border-b border-border">
+        <div className="mx-auto max-w-7xl px-4 py-10 lg:px-6 lg:py-14">
+          <div className="mx-auto max-w-2xl text-center">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-brand/30 bg-brand/10 px-3 py-1 text-xs font-medium text-brand">
+              <ShieldCheck size={13} />
+              {t("common.tagline")}
+            </span>
+            <h1 className="mt-4 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+              {t("home.heroTitle")}
+            </h1>
+            <p className="mt-3 text-sm leading-relaxed text-muted sm:text-base">{t("home.heroSubtitle")}</p>
+
+            <div className="relative mx-auto mt-6 max-w-md">
+              <Search size={16} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-muted" />
+              <input
+                type="text"
+                placeholder={t("common.searchPlaceholder")}
+                className="w-full rounded-lg border border-border bg-surface py-2.5 pr-3 pl-10 text-sm text-foreground placeholder:text-muted focus:border-brand/50 focus:outline-none"
+              />
+            </div>
+
+            <div className="mt-5 flex flex-col items-center justify-center gap-2.5 sm:flex-row">
+              <Link
+                href="/catalog/pubg-mobile"
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-brand-foreground transition hover:bg-brand-dark sm:w-auto"
+              >
+                {t("home.heroCta")}
+                <ArrowRight size={16} />
+              </Link>
+              <Link
+                href="/sell"
+                className="w-full rounded-lg border border-border px-5 py-2.5 text-center text-sm font-semibold text-foreground transition hover:border-brand/40 hover:bg-surface sm:w-auto"
+              >
+                {t("home.heroCtaSecondary")}
+              </Link>
+            </div>
+
+            <div className="mt-8 flex items-center justify-center gap-6 border-t border-border pt-5 text-sm">
+              <span className="text-muted">
+                <b className="font-semibold text-foreground">1 200+</b> {t("home.statSellers")}
+              </span>
+              <span className="text-muted">
+                <b className="font-semibold text-foreground">45 000+</b> {t("home.statDeals")}
+              </span>
+              <span className="text-muted">
+                <b className="font-semibold text-foreground">{categories.length}</b> {t("home.statCategories")}
+              </span>
+            </div>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-10 lg:px-6">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {trustItems.map(({ icon: Icon, titleKey, descKey }) => (
+            <div key={titleKey} className="rounded-lg border border-border bg-surface p-5">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand/10 text-brand">
+                <Icon size={20} />
+              </span>
+              <h3 className="mt-3 text-sm font-semibold text-foreground">{t(titleKey)}</h3>
+              <p className="mt-1 text-xs leading-relaxed text-muted">{t(descKey)}</p>
+            </div>
+          ))}
         </div>
-      </main>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-10 lg:px-6">
+        <div className="mb-5 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-foreground">{t("home.categoriesTitle")}</h2>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {categories.map((c) => (
+            <CategoryCard key={c.slug} category={c} />
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-10 lg:px-6">
+        <div className="mb-5 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-foreground">{t("home.featuredTitle")}</h2>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {featured.map((l) => (
+            <ListingCard key={l.id} listing={l} />
+          ))}
+        </div>
+      </section>
+
+      <section id="how-it-works" className="mx-auto max-w-7xl px-4 py-14 lg:px-6">
+        <h2 className="mb-8 text-center text-xl font-bold text-foreground">{t("home.howItWorksTitle")}</h2>
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {steps.map(({ icon: Icon, titleKey, descKey }, i) => (
+            <div key={titleKey} className="relative rounded-lg border border-border bg-surface p-5">
+              <span className="absolute -top-3 -left-3 flex h-7 w-7 items-center justify-center rounded-full bg-brand text-xs font-bold text-brand-foreground">
+                {i + 1}
+              </span>
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-2 text-brand">
+                <Icon size={20} />
+              </span>
+              <h3 className="mt-3 text-sm font-semibold text-foreground">{t(titleKey)}</h3>
+              <p className="mt-1 text-xs leading-relaxed text-muted">{t(descKey)}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 pb-16 lg:px-6">
+        <div className="rounded-lg border border-border bg-surface p-8 text-center sm:p-12">
+          <HandCoins size={28} className="mx-auto text-brand" />
+          <h2 className="mt-3 text-2xl font-bold text-foreground">{t("home.ctaTitle")}</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm text-muted">{t("home.ctaSubtitle")}</p>
+          <Link
+            href="/sell"
+            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-sm font-semibold text-brand-foreground transition hover:bg-brand-dark"
+          >
+            {t("home.ctaButton")}
+            <ArrowRight size={16} />
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }
