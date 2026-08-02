@@ -162,7 +162,7 @@ export function ListingView({ listingId }: { listingId: string }) {
           )}
         </div>
 
-        <div className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+        <div className="order-first space-y-4 lg:order-last lg:sticky lg:top-20 lg:self-start">
           <div className="rounded-lg border border-border bg-surface p-5">
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-bold text-foreground">{listing.price}</span>
