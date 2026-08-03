@@ -2,21 +2,25 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { Search, MessageCircle, Menu, X, LayoutGrid, ChevronDown, Plus, LogOut } from "lucide-react";
+import { Search, MessageCircle, Menu, X, LayoutGrid, ChevronDown, Plus, LogOut, Wallet, Package, Store } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useAuth } from "@/lib/auth-context";
 import { useCategories } from "@/lib/categories-context";
+import { useWallet } from "@/lib/wallet-context";
 import { CategoryImage } from "./CategoryImage";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { Avatar } from "./Avatar";
+import { TopUpModal } from "./TopUpModal";
 
 export function Header() {
   const { t, tl } = useI18n();
   const { user, logout } = useAuth();
   const { categories } = useCategories();
+  const { balance } = useWallet();
   const [catOpen, setCatOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [topUpOpen, setTopUpOpen] = useState(false);
   const catRef = useRef<HTMLDivElement>(null);
   const userRef = useRef<HTMLDivElement>(null);
 
@@ -84,32 +88,57 @@ export function Header() {
           </Link>
           <LanguageSwitcher />
           {user ? (
-            <div className="relative" ref={userRef}>
+            <>
               <button
-                onClick={() => setUserOpen((v) => !v)}
-                className="flex items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-surface"
+                onClick={() => setTopUpOpen(true)}
+                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground/90 transition hover:border-brand/40"
               >
-                <Avatar name={user.name} size={28} />
-                <span className="max-w-[100px] truncate text-sm font-medium text-foreground/90">
-                  {user.name}
-                </span>
-                <ChevronDown size={13} className={`text-muted transition ${userOpen ? "rotate-180" : ""}`} />
+                <Wallet size={15} className="text-brand" />
+                {balance} {t("common.currency")}
               </button>
-              {userOpen && (
-                <div className="absolute right-0 z-30 mt-1.5 w-44 overflow-hidden rounded-lg border border-border bg-surface-2 py-1 shadow-xl">
-                  <button
-                    onClick={() => {
-                      logout();
-                      setUserOpen(false);
-                    }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground/90 hover:bg-surface"
-                  >
-                    <LogOut size={14} />
-                    {t("common.logout")}
-                  </button>
-                </div>
-              )}
-            </div>
+              <div className="relative" ref={userRef}>
+                <button
+                  onClick={() => setUserOpen((v) => !v)}
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-surface"
+                >
+                  <Avatar name={user.name} size={28} />
+                  <span className="max-w-[100px] truncate text-sm font-medium text-foreground/90">
+                    {user.name}
+                  </span>
+                  <ChevronDown size={13} className={`text-muted transition ${userOpen ? "rotate-180" : ""}`} />
+                </button>
+                {userOpen && (
+                  <div className="absolute right-0 z-30 mt-1.5 w-52 overflow-hidden rounded-lg border border-border bg-surface-2 py-1 shadow-xl">
+                    <Link
+                      href={`/seller?id=${user.id}`}
+                      onClick={() => setUserOpen(false)}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground/90 hover:bg-surface"
+                    >
+                      <Store size={14} />
+                      {t("nav.myListings")}
+                    </Link>
+                    <Link
+                      href="/orders"
+                      onClick={() => setUserOpen(false)}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground/90 hover:bg-surface"
+                    >
+                      <Package size={14} />
+                      {t("nav.myOrders")}
+                    </Link>
+                    <button
+                      onClick={() => {
+                        logout();
+                        setUserOpen(false);
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground/90 hover:bg-surface"
+                    >
+                      <LogOut size={14} />
+                      {t("common.logout")}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
           ) : (
             <Link
               href="/auth"
@@ -159,6 +188,36 @@ export function Header() {
               </Link>
             ))}
           </div>
+          {user && (
+            <div className="mb-3 flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setTopUpOpen(true);
+                  setMobileOpen(false);
+                }}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground/90"
+              >
+                <Wallet size={14} className="text-brand" />
+                {balance} {t("common.currency")}
+              </button>
+              <Link
+                href={`/seller?id=${user.id}`}
+                onClick={() => setMobileOpen(false)}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-foreground/90"
+              >
+                <Store size={14} />
+                {t("nav.myListings")}
+              </Link>
+              <Link
+                href="/orders"
+                onClick={() => setMobileOpen(false)}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-foreground/90"
+              >
+                <Package size={14} />
+                {t("nav.myOrders")}
+              </Link>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <Link
               href="/messages"
@@ -201,6 +260,8 @@ export function Header() {
           </div>
         </div>
       )}
+
+      {topUpOpen && <TopUpModal onClose={() => setTopUpOpen(false)} />}
     </header>
   );
 }

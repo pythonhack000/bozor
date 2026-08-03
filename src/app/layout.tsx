@@ -4,6 +4,7 @@ import "./globals.css";
 import { I18nProvider } from "@/lib/i18n-context";
 import { AuthProvider } from "@/lib/auth-context";
 import { CategoriesProvider } from "@/lib/categories-context";
+import { WalletProvider } from "@/lib/wallet-context";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 
@@ -33,11 +34,13 @@ export default function RootLayout({
       <body className="flex min-h-full flex-col bg-background text-foreground">
         <I18nProvider>
           <AuthProvider>
-            <CategoriesProvider>
-              <Header />
-              <main className="flex-1">{children}</main>
-              <Footer />
-            </CategoriesProvider>
+            <WalletProvider>
+              <CategoriesProvider>
+                <Header />
+                <main className="flex-1">{children}</main>
+                <Footer />
+              </CategoriesProvider>
+            </WalletProvider>
           </AuthProvider>
         </I18nProvider>
       </body>

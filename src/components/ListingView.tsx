@@ -60,6 +60,11 @@ export function ListingView() {
     };
   }, [id]);
 
+  const handlePurchased = () => {
+    if (!listing) return;
+    getListing(listing.id).then((found) => found && setListing(found));
+  };
+
   const handleBuyClick = () => {
     if (!listing) return;
     if (!user) {
@@ -221,14 +226,27 @@ export function ListingView() {
                 <span className="text-sm text-muted line-through">{listing.oldPrice}</span>
               )}
             </div>
-            <p className="mt-1 text-xs text-brand">{t("listing.inStock")}</p>
+            {listing.status === "sold" ? (
+              <p className="mt-1 text-xs text-muted">{t("listing.sold")}</p>
+            ) : (
+              <p className="mt-1 text-xs text-brand">{t("listing.inStock")}</p>
+            )}
 
-            <button
-              onClick={handleBuyClick}
-              className="mt-4 w-full rounded-xl bg-brand py-3 text-sm font-semibold text-brand-foreground transition hover:bg-brand-dark"
-            >
-              {t("listing.buyNow")}
-            </button>
+            {listing.status === "sold" ? (
+              <button
+                disabled
+                className="mt-4 w-full rounded-xl bg-surface-2 py-3 text-sm font-semibold text-muted"
+              >
+                {t("listing.sold")}
+              </button>
+            ) : user?.id === seller.id ? null : (
+              <button
+                onClick={handleBuyClick}
+                className="mt-4 w-full rounded-xl bg-brand py-3 text-sm font-semibold text-brand-foreground transition hover:bg-brand-dark"
+              >
+                {t("listing.buyNow")}
+              </button>
+            )}
 
             <div className="mt-3 flex items-center justify-center gap-1.5 text-xs text-muted">
               <ShieldCheck size={13} className="text-brand" />
@@ -241,7 +259,7 @@ export function ListingView() {
       </div>
 
       {buyOpen && user && (
-        <BuyModal listing={listing} buyerId={user.id} onClose={() => setBuyOpen(false)} />
+        <BuyModal listing={listing} onClose={() => setBuyOpen(false)} onPurchased={handlePurchased} />
       )}
     </div>
   );

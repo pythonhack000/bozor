@@ -1,36 +1,35 @@
 "use client";
 
 import { useState } from "react";
-import { X, ShieldCheck, Loader2, CheckCircle2, Wallet } from "lucide-react";
+import { X, ShieldCheck, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import type { Listing } from "@/lib/types";
-import { createOrder } from "@/lib/db";
-
-const PAYMENT_METHODS = ["Корти Миллӣ", "Alif Mobi", "Эсхата", "USDT"];
+import { buyListing } from "@/lib/db";
+import { useWallet } from "@/lib/wallet-context";
+import { TopUpModal } from "./TopUpModal";
 
 export function BuyModal({
   listing,
-  buyerId,
   onClose,
+  onPurchased,
 }: {
   listing: Listing;
-  buyerId: string;
   onClose: () => void;
+  onPurchased?: () => void;
 }) {
   const { t, tl } = useI18n();
-  const [method, setMethod] = useState(PAYMENT_METHODS[0]);
+  const { balance, isLoading: balanceLoading, refresh } = useWallet();
   const [status, setStatus] = useState<"idle" | "paying" | "success" | "error">("idle");
+  const [topUpOpen, setTopUpOpen] = useState(false);
+
+  const insufficient = !balanceLoading && balance < listing.price;
 
   const confirm = async () => {
     setStatus("paying");
     try {
-      await createOrder({
-        listingId: listing.id,
-        buyerId,
-        sellerId: listing.sellerId,
-        price: listing.price,
-        paymentMethod: method,
-      });
+      await buyListing(listing.id);
+      await refresh();
+      onPurchased?.();
       setStatus("success");
     } catch (err) {
       console.error("Failed to create order", err);
@@ -73,56 +72,59 @@ export function BuyModal({
               </span>
             </div>
 
-            <div className="mt-4">
-              <h4 className="mb-2 text-xs font-semibold text-muted uppercase">{t("buyModal.paymentMethod")}</h4>
-              <div className="grid grid-cols-2 gap-2">
-                {PAYMENT_METHODS.map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => setMethod(m)}
-                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition ${
-                      method === m
-                        ? "border-brand bg-brand/10 text-brand"
-                        : "border-border text-foreground/80 hover:border-brand/30"
-                    }`}
-                  >
-                    <Wallet size={13} />
-                    {m}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-4 flex gap-2.5 rounded-lg border border-brand/20 bg-brand/5 p-3 text-xs leading-relaxed text-muted">
-              <ShieldCheck size={26} className="shrink-0 text-brand" />
-              <div>
-                <p className="font-medium text-foreground">{t("buyModal.escrowTitle")}</p>
-                <p className="mt-0.5">{t("buyModal.escrowText")}</p>
-              </div>
-            </div>
-
-            {status === "error" && (
-              <p className="mt-3 text-xs text-danger">{t("buyModal.error")}</p>
-            )}
-
-            <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
-              <span className="text-sm text-muted">{t("buyModal.total")}</span>
-              <span className="text-lg font-bold text-foreground">
-                {listing.price} {t("common.currency")}
+            <div className="mt-3 flex items-center justify-between rounded-lg border border-border bg-surface px-3 py-2.5 text-sm">
+              <span className="text-muted">{t("buyModal.yourBalance")}</span>
+              <span className={`font-semibold ${insufficient ? "text-danger" : "text-foreground"}`}>
+                {balanceLoading ? "…" : balance} {t("common.currency")}
               </span>
             </div>
 
-            <button
-              onClick={confirm}
-              disabled={status === "paying"}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-brand py-3 text-sm font-semibold text-brand-foreground transition hover:bg-brand-dark disabled:opacity-70"
-            >
-              {status === "paying" && <Loader2 size={16} className="animate-spin" />}
-              {t("buyModal.confirmOrder")}
-            </button>
+            {insufficient ? (
+              <div className="mt-4 flex flex-col items-center gap-2 rounded-lg border border-danger/30 bg-danger/5 p-4 text-center">
+                <AlertTriangle size={22} className="text-danger" />
+                <p className="text-sm font-medium text-foreground">{t("buyModal.insufficientTitle")}</p>
+                <p className="text-xs text-muted">{t("buyModal.insufficientDesc")}</p>
+                <button
+                  onClick={() => setTopUpOpen(true)}
+                  className="mt-1 w-full rounded-lg bg-brand py-2.5 text-sm font-semibold text-brand-foreground transition hover:bg-brand-dark"
+                >
+                  {t("buyModal.topUp")}
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="mt-4 flex gap-2.5 rounded-lg border border-brand/20 bg-brand/5 p-3 text-xs leading-relaxed text-muted">
+                  <ShieldCheck size={26} className="shrink-0 text-brand" />
+                  <div>
+                    <p className="font-medium text-foreground">{t("buyModal.escrowTitle")}</p>
+                    <p className="mt-0.5">{t("buyModal.escrowText")}</p>
+                  </div>
+                </div>
+
+                {status === "error" && <p className="mt-3 text-xs text-danger">{t("buyModal.error")}</p>}
+
+                <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
+                  <span className="text-sm text-muted">{t("buyModal.total")}</span>
+                  <span className="text-lg font-bold text-foreground">
+                    {listing.price} {t("common.currency")}
+                  </span>
+                </div>
+
+                <button
+                  onClick={confirm}
+                  disabled={status === "paying"}
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-brand py-3 text-sm font-semibold text-brand-foreground transition hover:bg-brand-dark disabled:opacity-70"
+                >
+                  {status === "paying" && <Loader2 size={16} className="animate-spin" />}
+                  {t("buyModal.confirmOrder")}
+                </button>
+              </>
+            )}
           </>
         )}
       </div>
+
+      {topUpOpen && <TopUpModal onClose={() => setTopUpOpen(false)} />}
     </div>
   );
 }

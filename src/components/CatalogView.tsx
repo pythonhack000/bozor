@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { SlidersHorizontal, X, Loader2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useCategories } from "@/lib/categories-context";
-import { getListingsByCategory, type ListingWithRelations } from "@/lib/db";
+import { getListingsByCategory, getAllListings, type ListingWithRelations } from "@/lib/db";
 import type { DeliveryType } from "@/lib/types";
 import { CategoryImage } from "./CategoryImage";
 import { ListingCard } from "./ListingCard";
@@ -12,10 +12,10 @@ import { Breadcrumbs } from "./Breadcrumbs";
 
 type SortKey = "popular" | "priceAsc" | "priceDesc" | "new";
 
-export function CatalogView({ categorySlug }: { categorySlug: string }) {
+export function CatalogView({ categorySlug }: { categorySlug?: string }) {
   const { t, tl } = useI18n();
   const { categories } = useCategories();
-  const category = categories.find((c) => c.slug === categorySlug);
+  const category = categorySlug ? categories.find((c) => c.slug === categorySlug) : undefined;
   const [allListings, setAllListings] = useState<ListingWithRelations[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -23,7 +23,8 @@ export function CatalogView({ categorySlug }: { categorySlug: string }) {
     let cancelled = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsLoading(true);
-    getListingsByCategory(categorySlug).then((rows) => {
+    const fetcher = categorySlug ? getListingsByCategory(categorySlug) : getAllListings();
+    fetcher.then((rows) => {
       if (!cancelled) {
         setAllListings(rows);
         setIsLoading(false);
@@ -38,6 +39,7 @@ export function CatalogView({ categorySlug }: { categorySlug: string }) {
   const [priceFrom, setPriceFrom] = useState("");
   const [priceTo, setPriceTo] = useState("");
   const [delivery, setDelivery] = useState<Set<DeliveryType>>(new Set());
+  const [categoryFilter, setCategoryFilter] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const toggleDelivery = (d: DeliveryType) => {
@@ -54,6 +56,7 @@ export function CatalogView({ categorySlug }: { categorySlug: string }) {
 
   const results = useMemo(() => {
     let list = allListings.filter((l) => {
+      if (categoryFilter && l.categorySlug !== categoryFilter) return false;
       if (priceFrom && l.price < Number(priceFrom)) return false;
       if (priceTo && l.price > Number(priceTo)) return false;
       if (delivery.size > 0 && !delivery.has(l.delivery)) return false;
@@ -74,9 +77,9 @@ export function CatalogView({ categorySlug }: { categorySlug: string }) {
         list = [...list].sort((a, b) => b.views - a.views);
     }
     return list;
-  }, [allListings, sort, priceFrom, priceTo, delivery]);
+  }, [allListings, sort, priceFrom, priceTo, delivery, categoryFilter]);
 
-  if (!category) {
+  if (categorySlug && !category) {
     return (
       <div className="flex justify-center py-24">
         <Loader2 size={24} className="animate-spin text-muted" />
@@ -88,10 +91,29 @@ export function CatalogView({ categorySlug }: { categorySlug: string }) {
     setPriceFrom("");
     setPriceTo("");
     setDelivery(new Set());
+    setCategoryFilter("");
   };
 
   const FiltersPanel = (
     <div className="space-y-6">
+      {!categorySlug && (
+        <div>
+          <h4 className="mb-2.5 text-sm font-semibold text-foreground">{t("nav.categories")}</h4>
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-sm text-foreground focus:border-brand/50 focus:outline-none"
+          >
+            <option value="">{t("catalog.allCategories")}</option>
+            {categories.map((c) => (
+              <option key={c.slug} value={c.slug}>
+                {tl(c.name)}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div>
         <h4 className="mb-2.5 text-sm font-semibold text-foreground">{t("catalog.priceFrom")}</h4>
         <div className="flex items-center gap-2">
@@ -142,17 +164,23 @@ export function CatalogView({ categorySlug }: { categorySlug: string }) {
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 lg:px-6">
       <Breadcrumbs
-        items={[
-          { label: t("common.siteName"), href: "/" },
-          { label: t("nav.categories"), href: "/" },
-          { label: tl(category.name) },
-        ]}
+        items={
+          category
+            ? [
+                { label: t("common.siteName"), href: "/" },
+                { label: t("nav.categories"), href: "/" },
+                { label: tl(category.name) },
+              ]
+            : [{ label: t("common.siteName"), href: "/" }, { label: t("catalog.allListingsTitle") }]
+        }
       />
 
       <div className="mt-4 flex items-center gap-3">
-        <CategoryImage category={category} size={48} />
+        {category && <CategoryImage category={category} size={48} />}
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{tl(category.name)}</h1>
+          <h1 className="text-2xl font-bold text-foreground">
+            {category ? tl(category.name) : t("catalog.allListingsTitle")}
+          </h1>
           <p className="text-sm text-muted">
             {results.length} {t("catalog.resultsCount")}
           </p>

@@ -36,6 +36,8 @@ export interface Review {
 
 export type DeliveryType = "instant" | "manual";
 
+export type ListingStatus = "pending" | "active" | "sold" | "rejected";
+
 export interface Listing {
   id: string;
   categorySlug: string;
@@ -45,6 +47,7 @@ export interface Listing {
   oldPrice?: number;
   sellerId: string;
   delivery: DeliveryType;
+  status: ListingStatus;
   server?: string;
   level?: number;
   attrs: { label: LocalizedText; value: LocalizedText }[];
@@ -52,4 +55,18 @@ export interface Listing {
   createdAt: string;
   views: number;
   favorites: number;
+}
+
+export type OrderStatus = "paid" | "released" | "disputed" | "refunded";
+
+export interface Order {
+  id: string;
+  listingId: string | null;
+  listingTitle: LocalizedText | null;
+  buyerId: string;
+  sellerId: string;
+  otherPartyName: string;
+  price: number;
+  status: OrderStatus;
+  createdAt: string;
 }
