@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, CheckCircle2 } from "lucide-react";
+import { Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useAuth } from "@/lib/auth-context";
 import { useWallet } from "@/lib/wallet-context";
 import { getOrdersAsBuyer, getOrdersAsSeller, confirmOrderReceipt } from "@/lib/db";
 import type { Order, OrderStatus } from "@/lib/types";
+import { DisputeModal } from "./DisputeModal";
 
 type Tab = "purchases" | "sales";
 
@@ -48,6 +49,7 @@ export function OrdersView() {
   const [sales, setSales] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [disputingId, setDisputingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -139,23 +141,48 @@ export function OrdersView() {
                 </div>
               </div>
 
-              {tab === "purchases" && order.status === "paid" && (
-                <button
-                  onClick={() => confirmReceipt(order.id)}
-                  disabled={confirmingId === order.id}
-                  className="mt-3 flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-xs font-semibold text-brand-foreground transition hover:bg-brand-dark disabled:opacity-60"
-                >
-                  {confirmingId === order.id ? (
-                    <Loader2 size={13} className="animate-spin" />
-                  ) : (
-                    <CheckCircle2 size={13} />
+              {order.status === "disputed" && order.disputeReason && (
+                <p className="mt-2 rounded-lg bg-danger/5 px-3 py-2 text-xs text-danger">
+                  {t("orders.disputeReasonLabel")}: {order.disputeReason}
+                </p>
+              )}
+
+              {order.status === "paid" && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {tab === "purchases" && (
+                    <button
+                      onClick={() => confirmReceipt(order.id)}
+                      disabled={confirmingId === order.id}
+                      className="flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-xs font-semibold text-brand-foreground transition hover:bg-brand-dark disabled:opacity-60"
+                    >
+                      {confirmingId === order.id ? (
+                        <Loader2 size={13} className="animate-spin" />
+                      ) : (
+                        <CheckCircle2 size={13} />
+                      )}
+                      {t("orders.confirmReceipt")}
+                    </button>
                   )}
-                  {t("orders.confirmReceipt")}
-                </button>
+                  <button
+                    onClick={() => setDisputingId(order.id)}
+                    className="flex items-center gap-1.5 rounded-lg border border-danger/40 px-3.5 py-2 text-xs font-semibold text-danger transition hover:bg-danger/10"
+                  >
+                    <AlertTriangle size={13} />
+                    {t("orders.openDispute")}
+                  </button>
+                </div>
               )}
             </div>
           ))}
         </div>
+      )}
+
+      {disputingId && (
+        <DisputeModal
+          orderId={disputingId}
+          onClose={() => setDisputingId(null)}
+          onSuccess={load}
+        />
       )}
     </div>
   );

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ImagePlus, CheckCircle2, ArrowRight, X, Loader2 } from "lucide-react";
+import { Check, ImagePlus, CheckCircle2, ArrowRight, X, Loader2, AlertTriangle } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useAuth } from "@/lib/auth-context";
 import { useCategories } from "@/lib/categories-context";
@@ -129,6 +129,11 @@ export default function SellPage() {
     <div className="mx-auto max-w-2xl px-4 py-8 lg:px-6">
       <h1 className="text-2xl font-bold text-foreground">{t("sell.title")}</h1>
       <p className="mt-1 text-sm text-muted">{t("sell.subtitle")}</p>
+
+      <div className="mt-4 flex gap-2.5 rounded-lg border border-gold/30 bg-gold/5 p-3 text-xs leading-relaxed text-muted">
+        <AlertTriangle size={18} className="mt-0.5 shrink-0 text-gold" />
+        <p>{t("sell.demoWarning")}</p>
+      </div>
 
       <div className="mt-6 flex items-center gap-2">
         {STEPS.map((key, i) => (

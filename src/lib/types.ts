@@ -68,5 +68,19 @@ export interface Order {
   otherPartyName: string;
   price: number;
   status: OrderStatus;
+  disputeReason?: string;
+  createdAt: string;
+}
+
+export interface DisputedOrder {
+  id: string;
+  listingTitle: LocalizedText | null;
+  price: number;
+  buyerId: string;
+  buyerName: string;
+  sellerId: string;
+  sellerName: string;
+  disputeReason: string;
+  disputeOpenedBy: string;
   createdAt: string;
 }

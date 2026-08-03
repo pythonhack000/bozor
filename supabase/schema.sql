@@ -14,6 +14,7 @@ create table if not exists public.profiles (
   reviews_count int not null default 0,
   sales_count int not null default 0,
   balance numeric not null default 0,
+  is_admin boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -89,6 +90,8 @@ create table if not exists public.orders (
   price numeric not null,
   payment_method text,
   status text not null default 'paid' check (status in ('paid', 'released', 'disputed', 'refunded')),
+  dispute_reason text,
+  dispute_opened_by uuid references public.profiles(id),
   created_at timestamptz not null default now()
 );
 
@@ -195,8 +198,20 @@ create policy "users can read own transactions" on public.wallet_transactions fo
 -- All balance/rating/sales mutations and balance reads must go through the
 -- security-definer functions below, which run as the table owner and
 -- bypass these grants.
-revoke update (balance, sales_count, rating, reviews_count, verified) on public.profiles from authenticated;
-revoke select (balance) on public.profiles from anon, authenticated;
+--
+-- IMPORTANT: a column-level REVOKE does NOT override the table-level
+-- "GRANT ALL ON ALL TABLES IN SCHEMA public" that Supabase applies by
+-- default (information_schema.column_privileges will keep showing the
+-- column as grantable until the table-level grant itself is revoked).
+-- Confirmed via a live PATCH against /rest/v1/profiles that a
+-- column-level-only revoke silently does nothing — the table-level grant
+-- must be revoked and only the safe columns re-granted.
+revoke update on public.profiles from anon, authenticated;
+grant update (name, city, online, response_time_minutes) on public.profiles to authenticated;
+
+revoke select on public.profiles from anon, authenticated;
+grant select (id, name, city, verified, online, response_time_minutes, rating, reviews_count, sales_count, created_at, is_admin)
+  on public.profiles to anon, authenticated;
 
 create or replace function public.get_my_balance()
 returns numeric
@@ -313,6 +328,125 @@ grant execute on function public.get_my_balance() to authenticated;
 grant execute on function public.topup_balance(numeric) to authenticated;
 grant execute on function public.purchase_listing(uuid) to authenticated;
 grant execute on function public.confirm_order_receipt(uuid) to authenticated;
+
+-- Dispute / arbitration
+-- (is_admin is already excluded from the UPDATE grant list above, so no
+-- client can self-promote to admin)
+
+create or replace function public.open_dispute(p_order_id uuid, p_reason text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order public.orders%rowtype;
+begin
+  if p_reason is null or length(trim(p_reason)) = 0 then
+    raise exception 'reason required';
+  end if;
+
+  select * into v_order from public.orders where id = p_order_id for update;
+  if not found then
+    raise exception 'order not found';
+  end if;
+  if auth.uid() not in (v_order.buyer_id, v_order.seller_id) then
+    raise exception 'not a participant of this order';
+  end if;
+  if v_order.status <> 'paid' then
+    raise exception 'order not in a disputable state';
+  end if;
+
+  update public.orders
+    set status = 'disputed', dispute_reason = p_reason, dispute_opened_by = auth.uid()
+    where id = p_order_id;
+end;
+$$;
+
+create or replace function public.admin_list_disputed_orders()
+returns table (
+  id uuid,
+  listing_title jsonb,
+  price numeric,
+  buyer_id uuid,
+  buyer_name text,
+  seller_id uuid,
+  seller_name text,
+  dispute_reason text,
+  dispute_opened_by uuid,
+  created_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  -- "p" alias is required here, not cosmetic: this function's RETURNS TABLE
+  -- declares an OUT parameter named "id", which shadows a bare "id" column
+  -- reference inside the function body ("column reference is ambiguous").
+  if not exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin) then
+    raise exception 'not authorized';
+  end if;
+
+  return query
+    select o.id, l.title, o.price, o.buyer_id, bp.name, o.seller_id, sp.name,
+           o.dispute_reason, o.dispute_opened_by, o.created_at
+    from public.orders o
+    left join public.listings l on l.id = o.listing_id
+    join public.profiles bp on bp.id = o.buyer_id
+    join public.profiles sp on sp.id = o.seller_id
+    where o.status = 'disputed'
+    order by o.created_at desc;
+end;
+$$;
+
+create or replace function public.admin_resolve_dispute(p_order_id uuid, p_resolution text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order public.orders%rowtype;
+begin
+  if not exists (select 1 from public.profiles where id = auth.uid() and is_admin) then
+    raise exception 'not authorized';
+  end if;
+  if p_resolution not in ('refund_buyer', 'release_seller') then
+    raise exception 'invalid resolution';
+  end if;
+
+  select * into v_order from public.orders where id = p_order_id for update;
+  if not found then
+    raise exception 'order not found';
+  end if;
+  if v_order.status <> 'disputed' then
+    raise exception 'order not in a disputed state';
+  end if;
+
+  if p_resolution = 'refund_buyer' then
+    update public.profiles set balance = balance + v_order.price where id = v_order.buyer_id;
+    update public.orders set status = 'refunded' where id = p_order_id;
+    insert into public.wallet_transactions (profile_id, amount, type, order_id)
+    values (v_order.buyer_id, v_order.price, 'refund', p_order_id);
+  else
+    update public.profiles
+      set balance = balance + v_order.price, sales_count = sales_count + 1
+      where id = v_order.seller_id;
+    update public.orders set status = 'released' where id = p_order_id;
+    insert into public.wallet_transactions (profile_id, amount, type, order_id)
+    values (v_order.seller_id, v_order.price, 'purchase_release', p_order_id);
+  end if;
+end;
+$$;
+
+revoke execute on function public.open_dispute(uuid, text) from public;
+revoke execute on function public.admin_list_disputed_orders() from public;
+revoke execute on function public.admin_resolve_dispute(uuid, text) from public;
+
+grant execute on function public.open_dispute(uuid, text) to authenticated;
+grant execute on function public.admin_list_disputed_orders() to authenticated;
+grant execute on function public.admin_resolve_dispute(uuid, text) to authenticated;
 
 -- Realtime for chat
 alter publication supabase_realtime add table public.messages;

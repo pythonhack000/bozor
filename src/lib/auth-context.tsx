@@ -8,6 +8,7 @@ interface AuthUser {
   id: string;
   name: string;
   email: string;
+  isAdmin: boolean;
 }
 
 interface AuthContextValue {
@@ -27,7 +28,13 @@ function toAuthUser(session: Session | null): AuthUser | null {
     id,
     email: email ?? "",
     name: (user_metadata?.name as string) || email?.split("@")[0] || "Пользователь",
+    isAdmin: false,
   };
+}
+
+async function fetchIsAdmin(userId: string): Promise<boolean> {
+  const { data } = await supabase.from("profiles").select("is_admin").eq("id", userId).maybeSingle();
+  return Boolean(data?.is_admin);
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -36,12 +43,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      setUser(toAuthUser(data.session));
+      const base = toAuthUser(data.session);
+      setUser(base);
       setIsLoading(false);
+      if (base) {
+        fetchIsAdmin(base.id).then((isAdmin) => {
+          setUser((prev) => (prev && prev.id === base.id ? { ...prev, isAdmin } : prev));
+        });
+      }
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(toAuthUser(session));
+      const base = toAuthUser(session);
+      setUser(base);
+      if (base) {
+        fetchIsAdmin(base.id).then((isAdmin) => {
+          setUser((prev) => (prev && prev.id === base.id ? { ...prev, isAdmin } : prev));
+        });
+      }
     });
 
     return () => listener.subscription.unsubscribe();

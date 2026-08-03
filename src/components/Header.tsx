@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { Search, MessageCircle, Menu, X, LayoutGrid, ChevronDown, Plus, LogOut, Wallet, Package, Store } from "lucide-react";
+import { Search, MessageCircle, Menu, X, LayoutGrid, ChevronDown, Plus, LogOut, Wallet, Package, Store, ShieldAlert } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useAuth } from "@/lib/auth-context";
 import { useCategories } from "@/lib/categories-context";
@@ -125,6 +125,16 @@ export function Header() {
                       <Package size={14} />
                       {t("nav.myOrders")}
                     </Link>
+                    {user.isAdmin && (
+                      <Link
+                        href="/admin"
+                        onClick={() => setUserOpen(false)}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground/90 hover:bg-surface"
+                      >
+                        <ShieldAlert size={14} />
+                        {t("admin.title")}
+                      </Link>
+                    )}
                     <button
                       onClick={() => {
                         logout();

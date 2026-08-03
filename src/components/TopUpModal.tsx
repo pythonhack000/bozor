@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Loader2, Wallet } from "lucide-react";
+import { X, Loader2, Wallet, AlertTriangle } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useWallet } from "@/lib/wallet-context";
 
@@ -38,6 +38,11 @@ export function TopUpModal({ onClose }: { onClose: () => void }) {
           <button onClick={onClose} className="text-muted hover:text-foreground">
             <X size={20} />
           </button>
+        </div>
+
+        <div className="mt-3 flex gap-2 rounded-lg border border-gold/30 bg-gold/5 p-2.5 text-xs leading-relaxed text-muted">
+          <AlertTriangle size={15} className="mt-0.5 shrink-0 text-gold" />
+          <p>{t("wallet.demoDisclaimer")}</p>
         </div>
 
         <label className="mt-4 block text-xs font-semibold text-muted uppercase">{t("wallet.amount")}</label>

@@ -101,6 +101,11 @@ export function BuyModal({
                   </div>
                 </div>
 
+                <div className="mt-2.5 flex gap-2 rounded-lg border border-gold/30 bg-gold/5 p-2.5 text-xs leading-relaxed text-muted">
+                  <AlertTriangle size={15} className="mt-0.5 shrink-0 text-gold" />
+                  <p>{t("wallet.demoDisclaimer")}</p>
+                </div>
+
                 {status === "error" && <p className="mt-3 text-xs text-danger">{t("buyModal.error")}</p>}
 
                 <div className="mt-4 flex items-center justify-between border-t border-border pt-4">

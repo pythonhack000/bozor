@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import type { Category, DeliveryType, Listing, LocalizedText, Order, Review, Seller } from "./types";
+import type { Category, DeliveryType, DisputedOrder, Listing, LocalizedText, Order, Review, Seller } from "./types";
 
 const PUBLIC_SELLER_COLUMNS =
   "id, name, online, verified, created_at, rating, reviews_count, sales_count, response_time_minutes, city";
@@ -243,6 +243,39 @@ export async function confirmOrderReceipt(orderId: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function openDispute(orderId: string, reason: string): Promise<void> {
+  const { error } = await supabase.rpc("open_dispute", { p_order_id: orderId, p_reason: reason });
+  if (error) throw error;
+}
+
+export async function getDisputedOrders(): Promise<DisputedOrder[]> {
+  const { data, error } = await supabase.rpc("admin_list_disputed_orders");
+  if (error) throw error;
+  return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+    id: row.id as string,
+    listingTitle: (row.listing_title as LocalizedText) ?? null,
+    price: Number(row.price),
+    buyerId: row.buyer_id as string,
+    buyerName: (row.buyer_name as string) ?? "Пользователь",
+    sellerId: row.seller_id as string,
+    sellerName: (row.seller_name as string) ?? "Пользователь",
+    disputeReason: (row.dispute_reason as string) ?? "",
+    disputeOpenedBy: row.dispute_opened_by as string,
+    createdAt: (row.created_at as string)?.slice(0, 10) ?? "",
+  }));
+}
+
+export async function resolveDispute(
+  orderId: string,
+  resolution: "refund_buyer" | "release_seller"
+): Promise<void> {
+  const { error } = await supabase.rpc("admin_resolve_dispute", {
+    p_order_id: orderId,
+    p_resolution: resolution,
+  });
+  if (error) throw error;
+}
+
 const ORDER_SELECT = "*, listing:listings(title)";
 
 function mapOrderRow(row: Record<string, unknown>, otherParty: { name?: string } | null): Order {
@@ -256,6 +289,7 @@ function mapOrderRow(row: Record<string, unknown>, otherParty: { name?: string }
     otherPartyName: otherParty?.name ?? "Пользователь",
     price: Number(row.price),
     status: row.status as Order["status"],
+    disputeReason: (row.dispute_reason as string) ?? undefined,
     createdAt: (row.created_at as string)?.slice(0, 10) ?? "",
   };
 }
