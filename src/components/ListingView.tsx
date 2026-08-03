@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { Eye, Heart, Flag, ShieldCheck } from "lucide-react";
+import { Eye, Heart, Flag, ShieldCheck, Loader2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useAuth } from "@/lib/auth-context";
-import { getCategory, getListing, getListingsByCategory, getSeller, reviews } from "@/lib/data";
+import { getListing, getListingsByCategory, getReviewsForListing, type ListingWithRelations } from "@/lib/db";
+import type { Review } from "@/lib/types";
 import { BASE_PATH } from "@/lib/base-path";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { InstantBadge } from "./Badges";
@@ -16,31 +17,72 @@ import { RatingStars } from "./RatingStars";
 import { Avatar } from "./Avatar";
 import { BuyModal } from "./BuyModal";
 
-export function ListingView({ listingId }: { listingId: string }) {
+export function ListingView() {
   const { t, tl } = useI18n();
   const { user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id");
+
+  const [listing, setListing] = useState<ListingWithRelations | null>(null);
+  const [itemReviews, setItemReviews] = useState<Review[]>([]);
+  const [similar, setSimilar] = useState<ListingWithRelations[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [fav, setFav] = useState(false);
   const [buyOpen, setBuyOpen] = useState(false);
 
-  const listing = getListing(listingId);
-  if (!listing) return null;
-  const category = getCategory(listing.categorySlug);
-  const seller = getSeller(listing.sellerId);
-  if (!category || !seller) return null;
+  useEffect(() => {
+    if (!id) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setIsLoading(true);
+
+    getListing(id).then(async (found) => {
+      if (cancelled) return;
+      setListing(found);
+      if (found) {
+        const [reviewRows, similarRows] = await Promise.all([
+          getReviewsForListing(found.id),
+          getListingsByCategory(found.categorySlug),
+        ]);
+        if (cancelled) return;
+        setItemReviews(reviewRows);
+        setSimilar(similarRows.filter((l) => l.id !== found.id).slice(0, 4));
+      }
+      setIsLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   const handleBuyClick = () => {
+    if (!listing) return;
     if (!user) {
-      router.push(`/auth?next=/listing/${listingId}`);
+      router.push(`/auth?next=${encodeURIComponent(`/listing?id=${listing.id}`)}`);
       return;
     }
     setBuyOpen(true);
   };
 
-  const itemReviews = reviews.filter((r) => r.listingTitle.ru === listing.title.ru);
-  const similar = getListingsByCategory(listing.categorySlug)
-    .filter((l) => l.id !== listing.id)
-    .slice(0, 4);
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-24">
+        <Loader2 size={24} className="animate-spin text-muted" />
+      </div>
+    );
+  }
+
+  if (!id || !listing) {
+    return <div className="mx-auto max-w-7xl px-4 py-16 text-center text-muted">{t("listing.notFound")}</div>;
+  }
+
+  const { category, seller } = listing;
+  const coverImage = listing.images[0];
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 lg:px-6">
@@ -58,24 +100,30 @@ export function ListingView({ listingId }: { listingId: string }) {
             className="relative h-48 overflow-hidden rounded-lg border border-border sm:h-64"
             style={{ backgroundColor: category.color }}
           >
-            {category.imageFit === "cover" && (
-              <Image
-                src={`${BASE_PATH}${category.image}`}
-                alt=""
-                fill
-                aria-hidden
-                sizes="(max-width: 1024px) 100vw, 800px"
-                className="scale-125 object-cover opacity-50 blur-2xl"
-              />
+            {coverImage ? (
+              <Image src={coverImage} alt={tl(listing.title)} fill sizes="(max-width: 1024px) 100vw, 800px" priority className="object-cover" />
+            ) : (
+              <>
+                {category.imageFit === "cover" && (
+                  <Image
+                    src={`${BASE_PATH}${category.image}`}
+                    alt=""
+                    fill
+                    aria-hidden
+                    sizes="(max-width: 1024px) 100vw, 800px"
+                    className="scale-125 object-cover opacity-50 blur-2xl"
+                  />
+                )}
+                <Image
+                  src={`${BASE_PATH}${category.image}`}
+                  alt={tl(category.name)}
+                  fill
+                  sizes="(max-width: 1024px) 100vw, 800px"
+                  priority
+                  className={`relative object-contain p-10 sm:p-14 ${category.imageFit === "contain" ? "brightness-0 invert" : ""}`}
+                />
+              </>
             )}
-            <Image
-              src={`${BASE_PATH}${category.image}`}
-              alt={tl(category.name)}
-              fill
-              sizes="(max-width: 1024px) 100vw, 800px"
-              priority
-              className={`relative object-contain p-10 sm:p-14 ${category.imageFit === "contain" ? "brightness-0 invert" : ""}`}
-            />
             {listing.delivery === "instant" && (
               <span className="absolute top-3 left-3">
                 <InstantBadge label={t("listing.deliveryInstant")} />
@@ -104,17 +152,19 @@ export function ListingView({ listingId }: { listingId: string }) {
             </button>
           </div>
 
-          <div className="mt-6 rounded-lg border border-border bg-surface p-5">
-            <h2 className="mb-3 text-sm font-semibold text-foreground">{t("listing.characteristics")}</h2>
-            <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {listing.attrs.map((a, i) => (
-                <div key={i}>
-                  <dt className="text-xs text-muted">{tl(a.label)}</dt>
-                  <dd className="text-sm font-medium text-foreground">{tl(a.value)}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
+          {listing.attrs.length > 0 && (
+            <div className="mt-6 rounded-lg border border-border bg-surface p-5">
+              <h2 className="mb-3 text-sm font-semibold text-foreground">{t("listing.characteristics")}</h2>
+              <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {listing.attrs.map((a, i) => (
+                  <div key={i}>
+                    <dt className="text-xs text-muted">{tl(a.label)}</dt>
+                    <dd className="text-sm font-medium text-foreground">{tl(a.value)}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
 
           <div className="mt-6 rounded-lg border border-border bg-surface p-5">
             <h2 className="mb-3 text-sm font-semibold text-foreground">{t("listing.description")}</h2>
@@ -186,11 +236,13 @@ export function ListingView({ listingId }: { listingId: string }) {
             </div>
           </div>
 
-          <SellerMiniCard seller={seller} />
+          <SellerMiniCard seller={seller} listingId={listing.id} />
         </div>
       </div>
 
-      {buyOpen && <BuyModal listing={listing} onClose={() => setBuyOpen(false)} />}
+      {buyOpen && user && (
+        <BuyModal listing={listing} buyerId={user.id} onClose={() => setBuyOpen(false)} />
+      )}
     </div>
   );
 }

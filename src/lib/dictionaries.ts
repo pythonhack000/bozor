@@ -90,6 +90,7 @@ export const dictionaries: Record<Lang, Dict> = {
     "listing.deliveryInstant": "Мгновенная выдача",
     "listing.deliveryManual": "Ручная выдача",
     "listing.noReviews": "Пока нет отзывов на этот товар",
+    "listing.notFound": "Объявление не найдено",
     "listing.views": "просмотров",
     "listing.inStock": "в наличии",
 
@@ -102,7 +103,9 @@ export const dictionaries: Record<Lang, Dict> = {
       "Мы удерживаем оплату до тех пор, пока вы не подтвердите, что получили рабочий товар. Если что-то пойдёт не так — откроем спор и вернём деньги.",
     "buyModal.paymentMethod": "Способ оплаты",
     "buyModal.close": "Закрыть",
+    "buyModal.error": "Не удалось оформить заказ. Попробуйте ещё раз.",
 
+    "seller.notFound": "Продавец не найден",
     "seller.memberSince": "На сайте с",
     "seller.rating": "Рейтинг",
     "seller.sales": "продаж",
@@ -113,7 +116,7 @@ export const dictionaries: Record<Lang, Dict> = {
     "seller.sendMessage": "Написать",
 
     "sell.title": "Разместить объявление",
-    "sell.subtitle": "Заполните форму — модерация занимает до 15 минут",
+    "sell.subtitle": "Заполните форму — объявление опубликуется сразу",
     "sell.step1Title": "Выберите категорию",
     "sell.step2Title": "Детали объявления",
     "sell.titleLabel": "Заголовок объявления",
@@ -127,8 +130,10 @@ export const dictionaries: Record<Lang, Dict> = {
     "sell.filesSelected": "файл(ов)",
     "sell.photosHint": "PNG, JPG до 5 МБ",
     "sell.publish": "Опубликовать объявление",
-    "sell.publishedTitle": "Объявление отправлено на модерацию",
-    "sell.publishedDesc": "Обычно проверка занимает до 15 минут, мы пришлём уведомление о публикации",
+    "sell.publishedTitle": "Объявление опубликовано!",
+    "sell.publishedDesc": "Оно уже доступно в каталоге — покупатели могут его найти прямо сейчас",
+    "sell.publishError": "Не удалось опубликовать объявление. Попробуйте ещё раз.",
+    "sell.viewListing": "Посмотреть объявление",
     "sell.next": "Далее",
     "sell.prev": "Назад",
 
@@ -138,6 +143,7 @@ export const dictionaries: Record<Lang, Dict> = {
     "messages.empty": "У вас пока нет сообщений",
 
     "auth.loginRequired": "Войдите или зарегистрируйтесь, чтобы продолжить",
+    "auth.passwordMismatch": "Пароли не совпадают",
     "auth.loginTitle": "Вход в AccBozor",
     "auth.registerTitle": "Регистрация в AccBozor",
     "auth.emailLabel": "Email или телефон",
@@ -246,6 +252,7 @@ export const dictionaries: Record<Lang, Dict> = {
     "listing.deliveryInstant": "Интиқоли фаврӣ",
     "listing.deliveryManual": "Интиқоли дастӣ",
     "listing.noReviews": "Барои ин мол ҳанӯз шарҳ нест",
+    "listing.notFound": "Эълон ёфт нашуд",
     "listing.views": "дидан",
     "listing.inStock": "мавҷуд",
 
@@ -258,7 +265,9 @@ export const dictionaries: Record<Lang, Dict> = {
       "Мо пардохтро то тасдиқи шумо дар бораи гирифтани моли солим нигоҳ медорем. Агар мушкиле пеш ояд — баҳс мекушоем ва пулро баргардонем.",
     "buyModal.paymentMethod": "Усули пардохт",
     "buyModal.close": "Пӯшидан",
+    "buyModal.error": "Фармоиш бомуваффақият анҷом наёфт. Бори дигар кӯшиш кунед.",
 
+    "seller.notFound": "Фурӯшанда ёфт нашуд",
     "seller.memberSince": "Дар сомона аз",
     "seller.rating": "Рейтинг",
     "seller.sales": "фурӯш",
@@ -269,7 +278,7 @@ export const dictionaries: Record<Lang, Dict> = {
     "seller.sendMessage": "Навиштан",
 
     "sell.title": "Эълон гузоштан",
-    "sell.subtitle": "Формаро пур кунед — баррасӣ то 15 дақиқа вақт мегирад",
+    "sell.subtitle": "Формаро пур кунед — эълон дарҳол нашр мешавад",
     "sell.step1Title": "Категорияро интихоб кунед",
     "sell.step2Title": "Тафсилоти эълон",
     "sell.titleLabel": "Сарлавҳаи эълон",
@@ -283,8 +292,10 @@ export const dictionaries: Record<Lang, Dict> = {
     "sell.filesSelected": "файл",
     "sell.photosHint": "PNG, JPG то 5 МБ",
     "sell.publish": "Эълонро нашр кунед",
-    "sell.publishedTitle": "Эълон барои баррасӣ фиристода шуд",
-    "sell.publishedDesc": "Одатан баррасӣ то 15 дақиқа вақт мегирад, мо дар бораи нашр огоҳ мекунем",
+    "sell.publishedTitle": "Эълон нашр шуд!",
+    "sell.publishedDesc": "Он аллакай дар каталог дастрас аст — харидорон метавонанд ҳозир пайдо кунанд",
+    "sell.publishError": "Эълон нашр нашуд. Бори дигар кӯшиш кунед.",
+    "sell.viewListing": "Эълонро дидан",
     "sell.next": "Минбаъд",
     "sell.prev": "Бозгашт",
 
@@ -294,6 +305,7 @@ export const dictionaries: Record<Lang, Dict> = {
     "messages.empty": "Шумо ҳанӯз паём надоред",
 
     "auth.loginRequired": "Барои идома вориди сомона шавед ё бақайд гиред",
+    "auth.passwordMismatch": "Паролҳо мувофиқат намекунанд",
     "auth.loginTitle": "Воридшавӣ ба AccBozor",
     "auth.registerTitle": "Бақайдгирӣ дар AccBozor",
     "auth.emailLabel": "Email ё телефон",
@@ -402,6 +414,7 @@ export const dictionaries: Record<Lang, Dict> = {
     "listing.deliveryInstant": "Instant delivery",
     "listing.deliveryManual": "Manual delivery",
     "listing.noReviews": "No reviews for this item yet",
+    "listing.notFound": "Listing not found",
     "listing.views": "views",
     "listing.inStock": "in stock",
 
@@ -414,7 +427,9 @@ export const dictionaries: Record<Lang, Dict> = {
       "We hold your payment until you confirm you received a working item. If anything goes wrong, we open a dispute and refund you.",
     "buyModal.paymentMethod": "Payment method",
     "buyModal.close": "Close",
+    "buyModal.error": "Couldn't place the order. Please try again.",
 
+    "seller.notFound": "Seller not found",
     "seller.memberSince": "Member since",
     "seller.rating": "Rating",
     "seller.sales": "sales",
@@ -425,7 +440,7 @@ export const dictionaries: Record<Lang, Dict> = {
     "seller.sendMessage": "Message",
 
     "sell.title": "Create a listing",
-    "sell.subtitle": "Fill out the form — moderation takes up to 15 minutes",
+    "sell.subtitle": "Fill out the form — your listing goes live instantly",
     "sell.step1Title": "Choose a category",
     "sell.step2Title": "Listing details",
     "sell.titleLabel": "Listing title",
@@ -439,8 +454,10 @@ export const dictionaries: Record<Lang, Dict> = {
     "sell.filesSelected": "file(s)",
     "sell.photosHint": "PNG, JPG up to 5 MB",
     "sell.publish": "Publish listing",
-    "sell.publishedTitle": "Listing sent for moderation",
-    "sell.publishedDesc": "Review usually takes up to 15 minutes, we'll notify you once it's live",
+    "sell.publishedTitle": "Listing published!",
+    "sell.publishedDesc": "It's already live in the catalog — buyers can find it right now",
+    "sell.publishError": "Couldn't publish the listing. Please try again.",
+    "sell.viewListing": "View listing",
     "sell.next": "Next",
     "sell.prev": "Back",
 
@@ -450,6 +467,7 @@ export const dictionaries: Record<Lang, Dict> = {
     "messages.empty": "You have no messages yet",
 
     "auth.loginRequired": "Log in or sign up to continue",
+    "auth.passwordMismatch": "Passwords do not match",
     "auth.loginTitle": "Log in to AccBozor",
     "auth.registerTitle": "Sign up for AccBozor",
     "auth.emailLabel": "Email or phone",

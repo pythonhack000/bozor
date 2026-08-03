@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ShieldCheck, Headset, BadgeCheck, Wallet, Search, ArrowRight, Wand2, HandCoins, CheckCircle2 } from "lucide-react";
+import { ShieldCheck, Headset, BadgeCheck, Wallet, Search, ArrowRight, Wand2, HandCoins, CheckCircle2, Loader2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
-import { categories, getFeaturedListings } from "@/lib/data";
+import { useCategories } from "@/lib/categories-context";
+import { getFeaturedListings, type ListingWithRelations } from "@/lib/db";
 import { CategoryCard } from "@/components/CategoryCard";
 import { ListingCard } from "@/components/ListingCard";
 
@@ -23,7 +25,15 @@ const steps = [
 
 export default function Home() {
   const { t } = useI18n();
-  const featured = getFeaturedListings(8);
+  const { categories } = useCategories();
+  const [featured, setFeatured] = useState<ListingWithRelations[]>([]);
+  const [isLoadingFeatured, setIsLoadingFeatured] = useState(true);
+
+  useEffect(() => {
+    getFeaturedListings(8)
+      .then(setFeatured)
+      .finally(() => setIsLoadingFeatured(false));
+  }, []);
 
   return (
     <div>
@@ -108,11 +118,17 @@ export default function Home() {
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-xl font-bold text-foreground">{t("home.featuredTitle")}</h2>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {featured.map((l) => (
-            <ListingCard key={l.id} listing={l} />
-          ))}
-        </div>
+        {isLoadingFeatured ? (
+          <div className="flex justify-center py-10">
+            <Loader2 size={24} className="animate-spin text-muted" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {featured.map((l) => (
+              <ListingCard key={l.id} listing={l} />
+            ))}
+          </div>
+        )}
       </section>
 
       <section id="how-it-works" className="mx-auto max-w-7xl px-4 py-14 lg:px-6">

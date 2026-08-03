@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Search, MessageCircle, Menu, X, LayoutGrid, ChevronDown, Plus, LogOut } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useAuth } from "@/lib/auth-context";
-import { categories } from "@/lib/data";
+import { useCategories } from "@/lib/categories-context";
 import { CategoryImage } from "./CategoryImage";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { Avatar } from "./Avatar";
@@ -13,6 +13,7 @@ import { Avatar } from "./Avatar";
 export function Header() {
   const { t, tl } = useI18n();
   const { user, logout } = useAuth();
+  const { categories } = useCategories();
   const [catOpen, setCatOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);

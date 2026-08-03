@@ -48,6 +48,7 @@ export interface Listing {
   server?: string;
   level?: number;
   attrs: { label: LocalizedText; value: LocalizedText }[];
+  images: string[];
   createdAt: string;
   views: number;
   favorites: number;

@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
-import { categories } from "@/lib/data";
+import { useCategories } from "@/lib/categories-context";
 
 export function Footer() {
   const { t, tl } = useI18n();
+  const { categories } = useCategories();
   return (
     <footer className="mt-16 border-t border-border bg-surface/40">
       <div className="mx-auto max-w-7xl px-4 py-12 lg:px-6">

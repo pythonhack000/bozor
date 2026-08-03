@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { I18nProvider } from "@/lib/i18n-context";
 import { AuthProvider } from "@/lib/auth-context";
+import { CategoriesProvider } from "@/lib/categories-context";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 
@@ -32,9 +33,11 @@ export default function RootLayout({
       <body className="flex min-h-full flex-col bg-background text-foreground">
         <I18nProvider>
           <AuthProvider>
-            <Header />
-            <main className="flex-1">{children}</main>
-            <Footer />
+            <CategoriesProvider>
+              <Header />
+              <main className="flex-1">{children}</main>
+              <Footer />
+            </CategoriesProvider>
           </AuthProvider>
         </I18nProvider>
       </body>

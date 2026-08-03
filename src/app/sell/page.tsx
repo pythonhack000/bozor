@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ImagePlus, CheckCircle2, ArrowRight, X } from "lucide-react";
+import { Check, ImagePlus, CheckCircle2, ArrowRight, X, Loader2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useAuth } from "@/lib/auth-context";
-import { categories } from "@/lib/data";
+import { useCategories } from "@/lib/categories-context";
 import { CategoryImage } from "@/components/CategoryImage";
+import { createListing } from "@/lib/db";
+import { uploadListingPhotos } from "@/lib/storage";
 import type { DeliveryType } from "@/lib/types";
 
 const STEPS = ["sell.step1Title", "sell.step2Title", "sell.step3Title"] as const;
@@ -14,6 +16,7 @@ const STEPS = ["sell.step1Title", "sell.step2Title", "sell.step3Title"] as const
 export default function SellPage() {
   const { t, tl } = useI18n();
   const { user, isLoading } = useAuth();
+  const { categories } = useCategories();
   const router = useRouter();
 
   useEffect(() => {
@@ -26,8 +29,11 @@ export default function SellPage() {
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [delivery, setDelivery] = useState<DeliveryType>("manual");
-  const [photos, setPhotos] = useState<{ id: string; url: string }[]>([]);
+  const [photos, setPhotos] = useState<{ id: string; file: File; url: string }[]>([]);
   const [published, setPublished] = useState(false);
+  const [publishedId, setPublishedId] = useState<string | null>(null);
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const MAX_PHOTOS = 5;
@@ -37,7 +43,7 @@ export default function SellPage() {
     const room = MAX_PHOTOS - photos.length;
     const next = Array.from(files)
       .slice(0, room)
-      .map((file) => ({ id: crypto.randomUUID(), url: URL.createObjectURL(file) }));
+      .map((file) => ({ id: crypto.randomUUID(), file, url: URL.createObjectURL(file) }));
     setPhotos((prev) => [...prev, ...next]);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -60,7 +66,35 @@ export default function SellPage() {
   const canNext =
     (step === 0 && categorySlug) || (step === 1 && title && description && price) || step === 2;
 
-  const publish = () => setPublished(true);
+  const publish = async () => {
+    if (!user || !categorySlug) return;
+    setPublishing(true);
+    setPublishError(null);
+    try {
+      const images = photos.length
+        ? await uploadListingPhotos(
+            photos.map((p) => p.file),
+            user.id
+          )
+        : [];
+      const created = await createListing({
+        categorySlug,
+        sellerId: user.id,
+        title,
+        description,
+        price: Number(price),
+        delivery,
+        images,
+      });
+      setPublishedId(created.id);
+      setPublished(true);
+    } catch (err) {
+      console.error("Failed to publish listing", err);
+      setPublishError(t("sell.publishError"));
+    } finally {
+      setPublishing(false);
+    }
+  };
 
   if (isLoading || !user) return null;
 
@@ -70,13 +104,23 @@ export default function SellPage() {
         <CheckCircle2 size={48} className="text-brand" />
         <h1 className="mt-4 text-xl font-bold text-foreground">{t("sell.publishedTitle")}</h1>
         <p className="mt-2 text-sm text-muted">{t("sell.publishedDesc")}</p>
-        <button
-          onClick={() => router.push("/")}
-          className="mt-6 flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-sm font-semibold text-brand-foreground hover:bg-brand-dark"
-        >
-          {t("common.viewAll")}
-          <ArrowRight size={16} />
-        </button>
+        <div className="mt-6 flex gap-3">
+          {publishedId && (
+            <button
+              onClick={() => router.push(`/listing?id=${publishedId}`)}
+              className="rounded-xl border border-border px-6 py-3 text-sm font-semibold text-foreground transition hover:border-brand/40"
+            >
+              {t("sell.viewListing")}
+            </button>
+          )}
+          <button
+            onClick={() => router.push("/")}
+            className="flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-sm font-semibold text-brand-foreground hover:bg-brand-dark"
+          >
+            {t("common.viewAll")}
+            <ArrowRight size={16} />
+          </button>
+        </div>
       </div>
     );
   }
@@ -228,6 +272,8 @@ export default function SellPage() {
         )}
       </div>
 
+      {publishError && <p className="mt-3 text-sm text-danger">{publishError}</p>}
+
       <div className="mt-5 flex justify-between">
         <button
           onClick={() => setStep((s) => Math.max(0, s - 1))}
@@ -248,8 +294,10 @@ export default function SellPage() {
         ) : (
           <button
             onClick={publish}
-            className="rounded-xl bg-brand px-6 py-2.5 text-sm font-semibold text-brand-foreground transition hover:bg-brand-dark"
+            disabled={publishing}
+            className="flex items-center gap-2 rounded-xl bg-brand px-6 py-2.5 text-sm font-semibold text-brand-foreground transition hover:bg-brand-dark disabled:opacity-70"
           >
+            {publishing && <Loader2 size={16} className="animate-spin" />}
             {t("sell.publish")}
           </button>
         )}

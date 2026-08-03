@@ -3,22 +3,19 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Heart, Zap } from "lucide-react";
-import type { Listing } from "@/lib/types";
 import { useI18n } from "@/lib/i18n-context";
-import { getCategory, getSeller } from "@/lib/data";
+import type { ListingWithRelations } from "@/lib/db";
 import { CategoryImage } from "./CategoryImage";
 import { Avatar } from "./Avatar";
 
-export function ListingCard({ listing }: { listing: Listing }) {
+export function ListingCard({ listing }: { listing: ListingWithRelations }) {
   const { t, tl } = useI18n();
   const [fav, setFav] = useState(false);
-  const category = getCategory(listing.categorySlug);
-  const seller = getSeller(listing.sellerId);
-  if (!category || !seller) return null;
+  const { category, seller } = listing;
 
   return (
     <Link
-      href={`/listing/${listing.id}`}
+      href={`/listing?id=${listing.id}`}
       className="group flex flex-col gap-2 rounded-lg border border-border bg-surface p-3 transition hover:border-brand/40 hover:bg-surface-2"
     >
       <div className="flex items-start justify-between gap-2">

@@ -4,17 +4,38 @@ import { useState } from "react";
 import { X, ShieldCheck, Loader2, CheckCircle2, Wallet } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import type { Listing } from "@/lib/types";
+import { createOrder } from "@/lib/db";
 
 const PAYMENT_METHODS = ["Корти Миллӣ", "Alif Mobi", "Эсхата", "USDT"];
 
-export function BuyModal({ listing, onClose }: { listing: Listing; onClose: () => void }) {
+export function BuyModal({
+  listing,
+  buyerId,
+  onClose,
+}: {
+  listing: Listing;
+  buyerId: string;
+  onClose: () => void;
+}) {
   const { t, tl } = useI18n();
   const [method, setMethod] = useState(PAYMENT_METHODS[0]);
-  const [status, setStatus] = useState<"idle" | "paying" | "success">("idle");
+  const [status, setStatus] = useState<"idle" | "paying" | "success" | "error">("idle");
 
-  const confirm = () => {
+  const confirm = async () => {
     setStatus("paying");
-    setTimeout(() => setStatus("success"), 1400);
+    try {
+      await createOrder({
+        listingId: listing.id,
+        buyerId,
+        sellerId: listing.sellerId,
+        price: listing.price,
+        paymentMethod: method,
+      });
+      setStatus("success");
+    } catch (err) {
+      console.error("Failed to create order", err);
+      setStatus("error");
+    }
   };
 
   return (
@@ -33,7 +54,7 @@ export function BuyModal({ listing, onClose }: { listing: Listing; onClose: () =
             <CheckCircle2 size={44} className="text-brand" />
             <p className="mt-4 text-sm text-foreground">{tl(listing.title)}</p>
             <p className="mt-1 text-xs text-muted">
-              #{listing.id.toUpperCase()} · {listing.price} {t("common.currency")}
+              #{listing.id.slice(0, 8).toUpperCase()} · {listing.price} {t("common.currency")}
             </p>
             <p className="mt-4 max-w-xs text-xs leading-relaxed text-muted">{t("buyModal.escrowText")}</p>
             <button
@@ -45,7 +66,7 @@ export function BuyModal({ listing, onClose }: { listing: Listing; onClose: () =
           </div>
         ) : (
           <>
-            <div className="mt-4 flex items-center justify-between rounded-xl border border-border bg-surface p-3">
+            <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-surface p-3">
               <span className="line-clamp-1 text-sm text-foreground/90">{tl(listing.title)}</span>
               <span className="shrink-0 text-sm font-semibold text-foreground">
                 {listing.price} {t("common.currency")}
@@ -72,13 +93,17 @@ export function BuyModal({ listing, onClose }: { listing: Listing; onClose: () =
               </div>
             </div>
 
-            <div className="mt-4 flex gap-2.5 rounded-xl border border-brand/20 bg-brand/5 p-3 text-xs leading-relaxed text-muted">
+            <div className="mt-4 flex gap-2.5 rounded-lg border border-brand/20 bg-brand/5 p-3 text-xs leading-relaxed text-muted">
               <ShieldCheck size={26} className="shrink-0 text-brand" />
               <div>
                 <p className="font-medium text-foreground">{t("buyModal.escrowTitle")}</p>
                 <p className="mt-0.5">{t("buyModal.escrowText")}</p>
               </div>
             </div>
+
+            {status === "error" && (
+              <p className="mt-3 text-xs text-danger">{t("buyModal.error")}</p>
+            )}
 
             <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
               <span className="text-sm text-muted">{t("buyModal.total")}</span>

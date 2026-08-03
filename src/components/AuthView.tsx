@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ShieldCheck, Headset, BadgeCheck } from "lucide-react";
+import { ShieldCheck, Headset, BadgeCheck, Loader2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useAuth } from "@/lib/auth-context";
 
@@ -10,15 +10,33 @@ export function AuthView() {
   const { t } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login } = useAuth();
+  const { signIn, signUp } = useAuth();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const displayName = mode === "register" && name ? name : email.split("@")[0] || email;
-    login(displayName || "Пользователь");
+    setError(null);
+
+    if (mode === "register" && password !== confirmPassword) {
+      setError(t("auth.passwordMismatch"));
+      return;
+    }
+
+    setSubmitting(true);
+    const result =
+      mode === "login" ? await signIn(email, password) : await signUp(email, password, name);
+    setSubmitting(false);
+
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
     router.push(searchParams.get("next") || "/");
   };
 
@@ -50,7 +68,10 @@ export function AuthView() {
         <div className="w-full max-w-sm">
           <div className="mb-6 flex rounded-lg border border-border bg-surface p-1">
             <button
-              onClick={() => setMode("login")}
+              onClick={() => {
+                setMode("login");
+                setError(null);
+              }}
               className={`flex-1 rounded-md py-2 text-sm font-medium transition ${
                 mode === "login" ? "bg-brand text-brand-foreground" : "text-muted"
               }`}
@@ -58,7 +79,10 @@ export function AuthView() {
               {t("common.login")}
             </button>
             <button
-              onClick={() => setMode("register")}
+              onClick={() => {
+                setMode("register");
+                setError(null);
+              }}
               className={`flex-1 rounded-md py-2 text-sm font-medium transition ${
                 mode === "register" ? "bg-brand text-brand-foreground" : "text-muted"
               }`}
@@ -90,6 +114,7 @@ export function AuthView() {
             <div>
               <label className="mb-1.5 block text-xs font-medium text-muted">{t("auth.emailLabel")}</label>
               <input
+                type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -101,6 +126,9 @@ export function AuthView() {
               <input
                 type="password"
                 required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground focus:border-brand/50 focus:outline-none"
               />
             </div>
@@ -112,15 +140,22 @@ export function AuthView() {
                 <input
                   type="password"
                   required
+                  minLength={6}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                   className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground focus:border-brand/50 focus:outline-none"
                 />
               </div>
             )}
 
+            {error && <p className="text-sm text-danger">{error}</p>}
+
             <button
               type="submit"
-              className="w-full rounded-lg bg-brand py-3 text-sm font-semibold text-brand-foreground transition hover:bg-brand-dark"
+              disabled={submitting}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand py-3 text-sm font-semibold text-brand-foreground transition hover:bg-brand-dark disabled:opacity-70"
             >
+              {submitting && <Loader2 size={16} className="animate-spin" />}
               {mode === "login" ? t("auth.loginButton") : t("auth.registerButton")}
             </button>
           </form>
@@ -128,7 +163,10 @@ export function AuthView() {
           <p className="mt-5 text-center text-sm text-muted">
             {mode === "login" ? t("auth.noAccount") : t("auth.hasAccount")}{" "}
             <button
-              onClick={() => setMode(mode === "login" ? "register" : "login")}
+              onClick={() => {
+                setMode(mode === "login" ? "register" : "login");
+                setError(null);
+              }}
               className="font-medium text-brand hover:underline"
             >
               {mode === "login" ? t("auth.switchToRegister") : t("auth.switchToLogin")}

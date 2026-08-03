@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { SlidersHorizontal, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { SlidersHorizontal, X, Loader2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
-import { getCategory, getListingsByCategory } from "@/lib/data";
+import { useCategories } from "@/lib/categories-context";
+import { getListingsByCategory, type ListingWithRelations } from "@/lib/db";
 import type { DeliveryType } from "@/lib/types";
 import { CategoryImage } from "./CategoryImage";
 import { ListingCard } from "./ListingCard";
@@ -13,8 +14,25 @@ type SortKey = "popular" | "priceAsc" | "priceDesc" | "new";
 
 export function CatalogView({ categorySlug }: { categorySlug: string }) {
   const { t, tl } = useI18n();
-  const category = getCategory(categorySlug);
-  const allListings = getListingsByCategory(categorySlug);
+  const { categories } = useCategories();
+  const category = categories.find((c) => c.slug === categorySlug);
+  const [allListings, setAllListings] = useState<ListingWithRelations[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsLoading(true);
+    getListingsByCategory(categorySlug).then((rows) => {
+      if (!cancelled) {
+        setAllListings(rows);
+        setIsLoading(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [categorySlug]);
 
   const [sort, setSort] = useState<SortKey>("popular");
   const [priceFrom, setPriceFrom] = useState("");
@@ -58,7 +76,13 @@ export function CatalogView({ categorySlug }: { categorySlug: string }) {
     return list;
   }, [allListings, sort, priceFrom, priceTo, delivery]);
 
-  if (!category) return null;
+  if (!category) {
+    return (
+      <div className="flex justify-center py-24">
+        <Loader2 size={24} className="animate-spin text-muted" />
+      </div>
+    );
+  }
 
   const resetFilters = () => {
     setPriceFrom("");
@@ -167,7 +191,11 @@ export function CatalogView({ categorySlug }: { categorySlug: string }) {
             </select>
           </div>
 
-          {results.length === 0 ? (
+          {isLoading ? (
+            <div className="flex justify-center py-16">
+              <Loader2 size={24} className="animate-spin text-muted" />
+            </div>
+          ) : results.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border py-16 text-center text-sm text-muted">
               {t("catalog.noResults")}
             </div>

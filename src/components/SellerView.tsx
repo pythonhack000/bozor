@@ -1,30 +1,87 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { Calendar, MapPin, MessageCircle, Zap } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Calendar, MapPin, MessageCircle, Zap, Loader2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useAuth } from "@/lib/auth-context";
-import { getSeller, getSellerListings, reviews } from "@/lib/data";
+import { getSeller, getSellerListings, getReviewsForSeller, type ListingWithRelations } from "@/lib/db";
+import { getOrCreateConversation } from "@/lib/chat";
+import type { Review, Seller } from "@/lib/types";
 import { Avatar } from "./Avatar";
 import { RatingStars } from "./RatingStars";
 import { VerifiedBadge } from "./Badges";
 import { ListingCard } from "./ListingCard";
 import { Breadcrumbs } from "./Breadcrumbs";
 
-export function SellerView({ sellerId }: { sellerId: string }) {
+export function SellerView() {
   const { t, tl } = useI18n();
   const { user } = useAuth();
   const router = useRouter();
-  const seller = getSeller(sellerId);
-  if (!seller) return null;
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id");
 
-  const handleMessageClick = () => {
-    router.push(user ? "/messages" : "/auth?next=/messages");
+  const [seller, setSeller] = useState<Seller | null>(null);
+  const [sellerListings, setSellerListings] = useState<ListingWithRelations[]>([]);
+  const [sellerReviews, setSellerReviews] = useState<Review[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [messaging, setMessaging] = useState(false);
+
+  useEffect(() => {
+    if (!id) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setIsLoading(true);
+
+    getSeller(id).then(async (found) => {
+      if (cancelled) return;
+      setSeller(found);
+      if (found) {
+        const [listingRows, reviewRows] = await Promise.all([
+          getSellerListings(found.id),
+          getReviewsForSeller(found.id),
+        ]);
+        if (cancelled) return;
+        setSellerListings(listingRows);
+        setSellerReviews(reviewRows);
+      }
+      setIsLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  const handleMessageClick = async () => {
+    if (!seller) return;
+    if (!user) {
+      router.push("/auth?next=/messages");
+      return;
+    }
+    setMessaging(true);
+    try {
+      const conversationId = await getOrCreateConversation(user.id, seller.id, null);
+      router.push(`/messages?conversation=${conversationId}`);
+    } finally {
+      setMessaging(false);
+    }
   };
 
-  const sellerListings = getSellerListings(sellerId);
-  const sellerListingTitles = new Set(sellerListings.map((l) => l.title.ru));
-  const sellerReviews = reviews.filter((r) => sellerListingTitles.has(r.listingTitle.ru));
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-24">
+        <Loader2 size={24} className="animate-spin text-muted" />
+      </div>
+    );
+  }
+
+  if (!id || !seller) {
+    return <div className="mx-auto max-w-7xl px-4 py-16 text-center text-muted">{t("seller.notFound")}</div>;
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 lg:px-6">
@@ -67,9 +124,10 @@ export function SellerView({ sellerId }: { sellerId: string }) {
         </div>
         <button
           onClick={handleMessageClick}
-          className="flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-brand-foreground transition hover:bg-brand-dark"
+          disabled={messaging}
+          className="flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-brand-foreground transition hover:bg-brand-dark disabled:opacity-60"
         >
-          <MessageCircle size={15} />
+          {messaging ? <Loader2 size={15} className="animate-spin" /> : <MessageCircle size={15} />}
           {t("seller.sendMessage")}
         </button>
       </div>
