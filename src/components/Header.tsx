@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { Search, MessageCircle, Menu, X, LayoutGrid, ChevronDown, Plus, LogOut, Wallet, Package, Store, ShieldAlert } from "lucide-react";
+import { Search, MessageCircle, Menu, X, LayoutGrid, ChevronDown, Plus, LogOut, Wallet, Package, Store, ShieldAlert, UserRound } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useAuth } from "@/lib/auth-context";
 import { useCategories } from "@/lib/categories-context";
@@ -110,6 +110,14 @@ export function Header() {
                 {userOpen && (
                   <div className="absolute right-0 z-30 mt-1.5 w-52 overflow-hidden rounded-lg border border-border bg-surface-2 py-1 shadow-xl">
                     <Link
+                      href="/profile"
+                      onClick={() => setUserOpen(false)}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground/90 hover:bg-surface"
+                    >
+                      <UserRound size={14} />
+                      {t("nav.profile")}
+                    </Link>
+                    <Link
                       href={`/seller?id=${user.id}`}
                       onClick={() => setUserOpen(false)}
                       className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground/90 hover:bg-surface"
@@ -199,21 +207,29 @@ export function Header() {
             ))}
           </div>
           {user && (
-            <div className="mb-3 flex items-center gap-2">
+            <div className="mb-3 grid grid-cols-2 gap-2">
               <button
                 onClick={() => {
                   setTopUpOpen(true);
                   setMobileOpen(false);
                 }}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground/90"
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground/90"
               >
                 <Wallet size={14} className="text-brand" />
                 {balance} {t("common.currency")}
               </button>
               <Link
+                href="/profile"
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-foreground/90"
+              >
+                <UserRound size={14} />
+                {t("nav.profile")}
+              </Link>
+              <Link
                 href={`/seller?id=${user.id}`}
                 onClick={() => setMobileOpen(false)}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-foreground/90"
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-foreground/90"
               >
                 <Store size={14} />
                 {t("nav.myListings")}
@@ -221,7 +237,7 @@ export function Header() {
               <Link
                 href="/orders"
                 onClick={() => setMobileOpen(false)}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-foreground/90"
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-foreground/90"
               >
                 <Package size={14} />
                 {t("nav.myOrders")}

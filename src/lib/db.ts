@@ -220,6 +220,18 @@ export async function createListing(input: {
   return mapListingRow(data);
 }
 
+export async function updateMyProfile(
+  userId: string,
+  updates: { name?: string; city?: string; online?: boolean }
+): Promise<void> {
+  if (updates.name !== undefined) {
+    const { error } = await supabase.auth.updateUser({ data: { name: updates.name } });
+    if (error) throw error;
+  }
+  const { error } = await supabase.from("profiles").update(updates).eq("id", userId);
+  if (error) throw error;
+}
+
 export async function getMyBalance(): Promise<number> {
   const { data, error } = await supabase.rpc("get_my_balance");
   if (error) throw error;

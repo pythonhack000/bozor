@@ -32,6 +32,7 @@ export const dictionaries: Record<Lang, Dict> = {
     "nav.support": "Поддержка",
     "nav.myListings": "Мои объявления",
     "nav.myOrders": "Мои заказы",
+    "nav.profile": "Профиль",
 
     "home.heroTitle": "Покупай и продавай игровые аккаунты безопасно",
     "home.heroSubtitle":
@@ -115,6 +116,17 @@ export const dictionaries: Record<Lang, Dict> = {
     "admin.seller": "Продавец",
     "admin.refundBuyer": "Вернуть покупателю",
     "admin.releaseSeller": "Отдать продавцу",
+
+    "profile.title": "Профиль",
+    "profile.editTitle": "Данные аккаунта",
+    "profile.emailLabel": "Email",
+    "profile.nameLabel": "Имя",
+    "profile.cityLabel": "Город",
+    "profile.onlineLabel": "Показывать себя онлайн",
+    "profile.save": "Сохранить",
+    "profile.saved": "Сохранено",
+    "profile.saveError": "Не удалось сохранить изменения",
+    "profile.viewPublicProfile": "Смотреть, как видят покупатели →",
 
     "listing.description": "Описание",
     "listing.characteristics": "Характеристики",
@@ -234,6 +246,7 @@ export const dictionaries: Record<Lang, Dict> = {
 
     "nav.myListings": "Эълонҳои ман",
     "nav.myOrders": "Фармоишҳои ман",
+    "nav.profile": "Профил",
     "nav.categories": "Категорияҳо",
     "nav.howItWorks": "Чӣ тавр кор мекунад",
     "nav.becomeSeller": "Фурӯшанда шудан",
@@ -321,6 +334,17 @@ export const dictionaries: Record<Lang, Dict> = {
     "admin.seller": "Фурӯшанда",
     "admin.refundBuyer": "Ба харидор баргардонидан",
     "admin.releaseSeller": "Ба фурӯшанда додан",
+
+    "profile.title": "Профил",
+    "profile.editTitle": "Маълумоти аккаунт",
+    "profile.emailLabel": "Email",
+    "profile.nameLabel": "Ном",
+    "profile.cityLabel": "Шаҳр",
+    "profile.onlineLabel": "Онлайн нишон додан",
+    "profile.save": "Захира кардан",
+    "profile.saved": "Захира шуд",
+    "profile.saveError": "Тағйирот захира нашуд",
+    "profile.viewPublicProfile": "Дидан чи хеле харидорон мебинанд →",
 
     "listing.description": "Тавсиф",
     "listing.characteristics": "Хусусиятҳо",
@@ -440,6 +464,7 @@ export const dictionaries: Record<Lang, Dict> = {
 
     "nav.myListings": "My listings",
     "nav.myOrders": "My orders",
+    "nav.profile": "Profile",
     "nav.categories": "Categories",
     "nav.howItWorks": "How it works",
     "nav.becomeSeller": "Become a seller",
@@ -527,6 +552,17 @@ export const dictionaries: Record<Lang, Dict> = {
     "admin.seller": "Seller",
     "admin.refundBuyer": "Refund buyer",
     "admin.releaseSeller": "Release to seller",
+
+    "profile.title": "Profile",
+    "profile.editTitle": "Account details",
+    "profile.emailLabel": "Email",
+    "profile.nameLabel": "Name",
+    "profile.cityLabel": "City",
+    "profile.onlineLabel": "Show me as online",
+    "profile.save": "Save",
+    "profile.saved": "Saved",
+    "profile.saveError": "Failed to save changes",
+    "profile.viewPublicProfile": "See how buyers see it →",
 
     "listing.description": "Description",
     "listing.characteristics": "Characteristics",
