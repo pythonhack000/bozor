@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { X, Loader2, Wallet, AlertTriangle } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useWallet } from "@/lib/wallet-context";
@@ -26,7 +27,7 @@ export function TopUpModal({ onClose }: { onClose: () => void }) {
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
       <div className="relative max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-t-lg border border-border bg-surface-2 p-5 sm:rounded-lg">
@@ -82,6 +83,7 @@ export function TopUpModal({ onClose }: { onClose: () => void }) {
           {t("wallet.topUpConfirm")}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
