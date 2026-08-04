@@ -40,7 +40,7 @@ export function BuyModal({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-t-lg border border-border bg-surface-2 p-5 sm:rounded-lg">
+      <div className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-lg border border-border bg-surface-2 p-5 sm:rounded-lg">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold text-foreground">{t("buyModal.title")}</h3>
           <button onClick={onClose} className="text-muted hover:text-foreground">

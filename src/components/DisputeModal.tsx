@@ -34,7 +34,7 @@ export function DisputeModal({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative w-full max-w-sm rounded-t-lg border border-border bg-surface-2 p-5 sm:rounded-lg">
+      <div className="relative max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-t-lg border border-border bg-surface-2 p-5 sm:rounded-lg">
         <div className="flex items-center justify-between">
           <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
             <AlertTriangle size={18} className="text-danger" />
