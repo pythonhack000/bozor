@@ -10,7 +10,7 @@ create table if not exists public.profiles (
   verified boolean not null default false,
   online boolean not null default true,
   response_time_minutes int not null default 30,
-  rating numeric(2,1) not null default 5.0,
+  rating numeric(2,1) not null default 0,
   reviews_count int not null default 0,
   sales_count int not null default 0,
   balance numeric not null default 0,
@@ -156,8 +156,12 @@ create policy "sellers can delete own listings" on public.listings for delete us
 drop policy if exists "reviews are publicly readable" on public.reviews;
 create policy "reviews are publicly readable" on public.reviews for select using (true);
 
+-- No client-side insert policy on reviews: rows are only ever written by
+-- create_review() below, which verifies the author has a released order
+-- for the listing before allowing a review (and updates the seller's
+-- rating/reviews_count atomically). A raw insert policy here would let
+-- anyone post a review for anything they never bought.
 drop policy if exists "authenticated users can create reviews" on public.reviews;
-create policy "authenticated users can create reviews" on public.reviews for insert with check (auth.uid() = author_id);
 
 drop policy if exists "participants can read conversations" on public.conversations;
 create policy "participants can read conversations" on public.conversations for select using (auth.uid() = buyer_id or auth.uid() = seller_id);
@@ -469,6 +473,69 @@ revoke execute on function public.admin_resolve_dispute(uuid, text) from public;
 grant execute on function public.open_dispute(uuid, text) to authenticated;
 grant execute on function public.admin_list_disputed_orders() to authenticated;
 grant execute on function public.admin_resolve_dispute(uuid, text) to authenticated;
+
+-- Reviews: only buyers with a released order for the listing may review it,
+-- once per listing. Recomputes the seller's aggregate rating/reviews_count.
+create or replace function public.create_review(p_listing_id uuid, p_rating int, p_text text)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_listing public.listings%rowtype;
+  v_has_purchase boolean;
+  v_review_id uuid;
+begin
+  if p_rating < 1 or p_rating > 5 then
+    raise exception 'invalid rating';
+  end if;
+  if p_text is null or length(trim(p_text)) = 0 then
+    raise exception 'review text required';
+  end if;
+
+  select * into v_listing from public.listings where id = p_listing_id;
+  if not found then
+    raise exception 'listing not found';
+  end if;
+
+  select exists(
+    select 1 from public.orders o
+    where o.listing_id = p_listing_id and o.buyer_id = auth.uid() and o.status = 'released'
+  ) into v_has_purchase;
+  if not v_has_purchase then
+    raise exception 'you can only review listings you have purchased and received';
+  end if;
+
+  if exists (select 1 from public.reviews where listing_id = p_listing_id and author_id = auth.uid()) then
+    raise exception 'you have already reviewed this listing';
+  end if;
+
+  insert into public.reviews (listing_id, author_id, rating, text)
+  values (p_listing_id, auth.uid(), p_rating, jsonb_build_object('ru', p_text, 'tj', p_text, 'en', p_text))
+  returning id into v_review_id;
+
+  update public.profiles
+    set rating = (
+          select round(avg(r.rating)::numeric, 1)
+          from public.reviews r
+          join public.listings l on l.id = r.listing_id
+          where l.seller_id = v_listing.seller_id
+        ),
+        reviews_count = (
+          select count(*)
+          from public.reviews r
+          join public.listings l on l.id = r.listing_id
+          where l.seller_id = v_listing.seller_id
+        )
+    where id = v_listing.seller_id;
+
+  return v_review_id;
+end;
+$$;
+
+revoke execute on function public.create_review(uuid, int, text) from public;
+grant execute on function public.create_review(uuid, int, text) to authenticated;
 
 -- Realtime for chat
 alter publication supabase_realtime add table public.messages;

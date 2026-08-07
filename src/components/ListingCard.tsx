@@ -70,7 +70,9 @@ export function ListingCard({ listing }: { listing: ListingWithRelations }) {
           <Avatar name={seller.name} size={16} online={seller.online} />
           <span className="truncate text-[11px] text-muted">{seller.name}</span>
         </div>
-        <span className="shrink-0 text-[11px] font-medium text-gold">★ {seller.rating}</span>
+        <span className="shrink-0 text-[11px] font-medium text-gold">
+          {seller.reviewsCount > 0 ? `★ ${seller.rating}` : t("seller.noRating")}
+        </span>
       </div>
     </Link>
   );

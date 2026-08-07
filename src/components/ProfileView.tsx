@@ -75,10 +75,16 @@ export function ProfileView() {
             <div>
               <div className="flex items-center gap-2 text-base font-semibold text-foreground">{seller.name}</div>
               <div className="mt-1 flex items-center gap-2 text-sm text-muted">
-                <RatingStars rating={seller.rating} size={13} />
-                <span>
-                  {seller.rating} ({seller.reviewsCount})
-                </span>
+                {seller.reviewsCount > 0 ? (
+                  <>
+                    <RatingStars rating={seller.rating} size={13} />
+                    <span>
+                      {seller.rating} ({seller.reviewsCount})
+                    </span>
+                  </>
+                ) : (
+                  <span>{t("seller.noRating")}</span>
+                )}
               </div>
               <p className="mt-1 text-xs text-muted">
                 {t("seller.memberSince")} {seller.registeredYear} · {seller.salesCount} {t("seller.sales")}

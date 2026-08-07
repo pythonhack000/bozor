@@ -193,6 +193,46 @@ export async function getReviewsForSeller(sellerId: string): Promise<Review[]> {
   return (data ?? []).map(mapReviewRow);
 }
 
+export async function createReview(listingId: string, rating: number, text: string): Promise<void> {
+  const { error } = await supabase.rpc("create_review", {
+    p_listing_id: listingId,
+    p_rating: rating,
+    p_text: text,
+  });
+  if (error) throw error;
+}
+
+export async function getMyReviewedListingIds(userId: string): Promise<Set<string>> {
+  const { data, error } = await supabase.from("reviews").select("listing_id").eq("author_id", userId);
+  if (error) throw error;
+  return new Set((data ?? []).map((r) => r.listing_id as string));
+}
+
+export async function hasReviewedListing(userId: string, listingId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("reviews")
+    .select("id")
+    .eq("author_id", userId)
+    .eq("listing_id", listingId)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return Boolean(data);
+}
+
+export async function hasReleasedOrder(buyerId: string, listingId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("orders")
+    .select("id")
+    .eq("buyer_id", buyerId)
+    .eq("listing_id", listingId)
+    .eq("status", "released")
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return Boolean(data);
+}
+
 export async function createListing(input: {
   categorySlug: string;
   sellerId: string;

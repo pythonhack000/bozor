@@ -42,8 +42,14 @@ export function SellerMiniCard({ seller, listingId }: { seller: Seller; listingI
             {seller.verified && <VerifiedBadge />}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-muted">
-            <RatingStars rating={seller.rating} size={12} />
-            <span>{seller.rating}</span>
+            {seller.reviewsCount > 0 ? (
+              <>
+                <RatingStars rating={seller.rating} size={12} />
+                <span>{seller.rating}</span>
+              </>
+            ) : (
+              <span>{t("seller.noRating")}</span>
+            )}
           </div>
         </div>
       </Link>

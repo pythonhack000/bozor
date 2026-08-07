@@ -102,10 +102,16 @@ export function SellerView() {
             </span>
           </div>
           <div className="mt-1.5 flex items-center gap-2 text-sm text-muted">
-            <RatingStars rating={seller.rating} />
-            <span>
-              {seller.rating} ({seller.reviewsCount})
-            </span>
+            {seller.reviewsCount > 0 ? (
+              <>
+                <RatingStars rating={seller.rating} />
+                <span>
+                  {seller.rating} ({seller.reviewsCount})
+                </span>
+              </>
+            ) : (
+              <span>{t("seller.noRating")}</span>
+            )}
           </div>
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-muted">
             <span className="flex items-center gap-1">

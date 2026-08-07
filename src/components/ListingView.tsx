@@ -3,10 +3,17 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { Eye, Heart, Flag, ShieldCheck, Loader2 } from "lucide-react";
+import { Eye, Heart, Flag, ShieldCheck, Loader2, Star } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useAuth } from "@/lib/auth-context";
-import { getListing, getListingsByCategory, getReviewsForListing, type ListingWithRelations } from "@/lib/db";
+import {
+  getListing,
+  getListingsByCategory,
+  getReviewsForListing,
+  hasReleasedOrder,
+  hasReviewedListing,
+  type ListingWithRelations,
+} from "@/lib/db";
 import type { Review } from "@/lib/types";
 import { BASE_PATH } from "@/lib/base-path";
 import { Breadcrumbs } from "./Breadcrumbs";
@@ -16,6 +23,7 @@ import { ListingCard } from "./ListingCard";
 import { RatingStars } from "./RatingStars";
 import { Avatar } from "./Avatar";
 import { BuyModal } from "./BuyModal";
+import { ReviewModal } from "./ReviewModal";
 
 export function ListingView() {
   const { t, tl } = useI18n();
@@ -30,6 +38,9 @@ export function ListingView() {
   const [isLoading, setIsLoading] = useState(true);
   const [fav, setFav] = useState(false);
   const [buyOpen, setBuyOpen] = useState(false);
+  const [canReview, setCanReview] = useState(false);
+  const [alreadyReviewed, setAlreadyReviewed] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   useEffect(() => {
     if (!id) {
@@ -59,6 +70,31 @@ export function ListingView() {
       cancelled = true;
     };
   }, [id]);
+
+  useEffect(() => {
+    if (!user || !listing) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCanReview(false);
+      return;
+    }
+    let cancelled = false;
+    Promise.all([hasReleasedOrder(user.id, listing.id), hasReviewedListing(user.id, listing.id)]).then(
+      ([released, reviewed]) => {
+        if (cancelled) return;
+        setCanReview(released);
+        setAlreadyReviewed(reviewed);
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [user, listing]);
+
+  const refreshReviews = () => {
+    if (!listing) return;
+    getReviewsForListing(listing.id).then(setItemReviews);
+    setAlreadyReviewed(true);
+  };
 
   const handlePurchased = () => {
     if (!listing) return;
@@ -177,9 +213,20 @@ export function ListingView() {
           </div>
 
           <div className="mt-6">
-            <h2 className="mb-3 text-sm font-semibold text-foreground">
-              {t("listing.reviewsTitle")} {itemReviews.length > 0 && `(${itemReviews.length})`}
-            </h2>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-foreground">
+                {t("listing.reviewsTitle")} {itemReviews.length > 0 && `(${itemReviews.length})`}
+              </h2>
+              {canReview && !alreadyReviewed && (
+                <button
+                  onClick={() => setReviewOpen(true)}
+                  className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground/90 transition hover:border-brand/40"
+                >
+                  <Star size={13} />
+                  {t("review.leaveReview")}
+                </button>
+              )}
+            </div>
             {itemReviews.length === 0 ? (
               <p className="rounded-lg border border-dashed border-border p-5 text-sm text-muted">
                 {t("listing.noReviews")}
@@ -260,6 +307,10 @@ export function ListingView() {
 
       {buyOpen && user && (
         <BuyModal listing={listing} onClose={() => setBuyOpen(false)} onPurchased={handlePurchased} />
+      )}
+
+      {reviewOpen && (
+        <ReviewModal listingId={listing.id} onClose={() => setReviewOpen(false)} onSuccess={refreshReviews} />
       )}
     </div>
   );

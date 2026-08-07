@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Loader2, CheckCircle2, AlertTriangle, Star } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useAuth } from "@/lib/auth-context";
 import { useWallet } from "@/lib/wallet-context";
-import { getOrdersAsBuyer, getOrdersAsSeller, confirmOrderReceipt } from "@/lib/db";
+import { getOrdersAsBuyer, getOrdersAsSeller, confirmOrderReceipt, getMyReviewedListingIds } from "@/lib/db";
 import type { Order, OrderStatus } from "@/lib/types";
 import { DisputeModal } from "./DisputeModal";
+import { ReviewModal } from "./ReviewModal";
 
 type Tab = "purchases" | "sales";
 
@@ -53,6 +54,8 @@ export function OrdersView() {
   const [isLoading, setIsLoading] = useState(true);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [disputingId, setDisputingId] = useState<string | null>(null);
+  const [reviewingListingId, setReviewingListingId] = useState<string | null>(null);
+  const [reviewedListingIds, setReviewedListingIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -62,9 +65,14 @@ export function OrdersView() {
   const load = async () => {
     if (!user) return;
     setIsLoading(true);
-    const [p, s] = await Promise.all([getOrdersAsBuyer(user.id), getOrdersAsSeller(user.id)]);
+    const [p, s, reviewed] = await Promise.all([
+      getOrdersAsBuyer(user.id),
+      getOrdersAsSeller(user.id),
+      getMyReviewedListingIds(user.id),
+    ]);
     setPurchases(p);
     setSales(s);
+    setReviewedListingIds(reviewed);
     setIsLoading(false);
   };
 
@@ -157,6 +165,25 @@ export function OrdersView() {
                 </p>
               )}
 
+              {tab === "purchases" && order.status === "released" && order.listingId && (
+                <div className="mt-3">
+                  {reviewedListingIds.has(order.listingId) ? (
+                    <span className="flex items-center gap-1.5 text-xs text-muted">
+                      <Star size={13} className="fill-gold text-gold" />
+                      {t("review.alreadyLeft")}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => setReviewingListingId(order.listingId)}
+                      className="flex items-center gap-1.5 rounded-lg border border-border px-3.5 py-2 text-xs font-semibold text-foreground/90 transition hover:border-brand/40"
+                    >
+                      <Star size={13} />
+                      {t("review.leaveReview")}
+                    </button>
+                  )}
+                </div>
+              )}
+
               {order.status === "paid" && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {tab === "purchases" && (
@@ -191,6 +218,14 @@ export function OrdersView() {
         <DisputeModal
           orderId={disputingId}
           onClose={() => setDisputingId(null)}
+          onSuccess={load}
+        />
+      )}
+
+      {reviewingListingId && (
+        <ReviewModal
+          listingId={reviewingListingId}
+          onClose={() => setReviewingListingId(null)}
           onSuccess={load}
         />
       )}
