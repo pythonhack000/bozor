@@ -84,3 +84,13 @@ export interface DisputedOrder {
   disputeOpenedBy: string;
   createdAt: string;
 }
+
+export interface ListingReport {
+  id: string;
+  listingId: string;
+  listingTitle: LocalizedText | null;
+  listingStatus: ListingStatus;
+  reporterName: string;
+  reason: string;
+  createdAt: string;
+}

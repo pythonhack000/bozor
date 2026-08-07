@@ -107,6 +107,18 @@ create table if not exists public.wallet_transactions (
 
 create index if not exists wallet_transactions_profile_idx on public.wallet_transactions(profile_id, created_at desc);
 
+-- Listing reports ("Пожаловаться")
+create table if not exists public.reports (
+  id uuid primary key default gen_random_uuid(),
+  listing_id uuid not null references public.listings(id) on delete cascade,
+  reporter_id uuid not null references public.profiles(id) on delete cascade,
+  reason text not null,
+  status text not null default 'open' check (status in ('open', 'resolved', 'dismissed')),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists reports_listing_idx on public.reports(listing_id);
+
 -- Auto-create profile row on signup
 create or replace function public.handle_new_user()
 returns trigger as $$
@@ -131,6 +143,7 @@ alter table public.conversations enable row level security;
 alter table public.messages enable row level security;
 alter table public.orders enable row level security;
 alter table public.wallet_transactions enable row level security;
+alter table public.reports enable row level security;
 
 drop policy if exists "profiles are publicly readable" on public.profiles;
 create policy "profiles are publicly readable" on public.profiles for select using (true);
@@ -162,6 +175,13 @@ create policy "reviews are publicly readable" on public.reviews for select using
 -- rating/reviews_count atomically). A raw insert policy here would let
 -- anyone post a review for anything they never bought.
 drop policy if exists "authenticated users can create reviews" on public.reviews;
+
+drop policy if exists "reporters can read own reports" on public.reports;
+create policy "reporters can read own reports" on public.reports for select using (auth.uid() = reporter_id);
+
+-- No client-side insert policy on reports either: only report_listing()
+-- writes rows, and only admin_list_reports()/admin_resolve_report() (both
+-- gated on profiles.is_admin) can see or act on the full open queue.
 
 drop policy if exists "participants can read conversations" on public.conversations;
 create policy "participants can read conversations" on public.conversations for select using (auth.uid() = buyer_id or auth.uid() = seller_id);
@@ -536,6 +556,107 @@ $$;
 
 revoke execute on function public.create_review(uuid, int, text) from public;
 grant execute on function public.create_review(uuid, int, text) to authenticated;
+
+-- Listing reports ("Пожаловаться")
+create or replace function public.report_listing(p_listing_id uuid, p_reason text)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_report_id uuid;
+begin
+  if p_reason is null or length(trim(p_reason)) = 0 then
+    raise exception 'reason required';
+  end if;
+  if not exists (select 1 from public.listings where id = p_listing_id) then
+    raise exception 'listing not found';
+  end if;
+  if exists (
+    select 1 from public.reports
+    where listing_id = p_listing_id and reporter_id = auth.uid() and status = 'open'
+  ) then
+    raise exception 'you already have an open report for this listing';
+  end if;
+
+  insert into public.reports (listing_id, reporter_id, reason)
+  values (p_listing_id, auth.uid(), trim(p_reason))
+  returning id into v_report_id;
+
+  return v_report_id;
+end;
+$$;
+
+create or replace function public.admin_list_reports()
+returns table (
+  id uuid,
+  listing_id uuid,
+  listing_title jsonb,
+  listing_status text,
+  reporter_name text,
+  reason text,
+  created_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin) then
+    raise exception 'not authorized';
+  end if;
+
+  return query
+    select r.id, r.listing_id, l.title, l.status, rp.name, r.reason, r.created_at
+    from public.reports r
+    join public.listings l on l.id = r.listing_id
+    join public.profiles rp on rp.id = r.reporter_id
+    where r.status = 'open'
+    order by r.created_at desc;
+end;
+$$;
+
+create or replace function public.admin_resolve_report(p_report_id uuid, p_action text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_report public.reports%rowtype;
+begin
+  if not exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin) then
+    raise exception 'not authorized';
+  end if;
+  if p_action not in ('dismiss', 'remove_listing') then
+    raise exception 'invalid action';
+  end if;
+
+  select * into v_report from public.reports where id = p_report_id for update;
+  if not found then
+    raise exception 'report not found';
+  end if;
+  if v_report.status <> 'open' then
+    raise exception 'report already handled';
+  end if;
+
+  if p_action = 'remove_listing' then
+    update public.listings set status = 'rejected' where id = v_report.listing_id;
+    update public.reports set status = 'resolved' where id = p_report_id;
+  else
+    update public.reports set status = 'dismissed' where id = p_report_id;
+  end if;
+end;
+$$;
+
+revoke execute on function public.report_listing(uuid, text) from public;
+revoke execute on function public.admin_list_reports() from public;
+revoke execute on function public.admin_resolve_report(uuid, text) from public;
+
+grant execute on function public.report_listing(uuid, text) to authenticated;
+grant execute on function public.admin_list_reports() to authenticated;
+grant execute on function public.admin_resolve_report(uuid, text) to authenticated;
 
 -- Realtime for chat
 alter publication supabase_realtime add table public.messages;

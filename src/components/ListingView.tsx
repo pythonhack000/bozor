@@ -24,6 +24,7 @@ import { RatingStars } from "./RatingStars";
 import { Avatar } from "./Avatar";
 import { BuyModal } from "./BuyModal";
 import { ReviewModal } from "./ReviewModal";
+import { ReportModal } from "./ReportModal";
 
 export function ListingView() {
   const { t, tl } = useI18n();
@@ -41,6 +42,7 @@ export function ListingView() {
   const [canReview, setCanReview] = useState(false);
   const [alreadyReviewed, setAlreadyReviewed] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   useEffect(() => {
     if (!id) {
@@ -108,6 +110,15 @@ export function ListingView() {
       return;
     }
     setBuyOpen(true);
+  };
+
+  const handleReportClick = () => {
+    if (!listing) return;
+    if (!user) {
+      router.push(`/auth?next=${encodeURIComponent(`/listing?id=${listing.id}`)}`);
+      return;
+    }
+    setReportOpen(true);
   };
 
   if (isLoading) {
@@ -187,7 +198,10 @@ export function ListingView() {
             </span>
             <span>·</span>
             <span>{listing.createdAt}</span>
-            <button className="ml-auto flex items-center gap-1 text-muted hover:text-danger">
+            <button
+              onClick={handleReportClick}
+              className="ml-auto flex items-center gap-1 text-muted hover:text-danger"
+            >
               <Flag size={13} />
               {t("listing.reportListing")}
             </button>
@@ -312,6 +326,8 @@ export function ListingView() {
       {reviewOpen && (
         <ReviewModal listingId={listing.id} onClose={() => setReviewOpen(false)} onSuccess={refreshReviews} />
       )}
+
+      {reportOpen && <ReportModal listingId={listing.id} onClose={() => setReportOpen(false)} />}
     </div>
   );
 }

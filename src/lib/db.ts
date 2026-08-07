@@ -1,5 +1,15 @@
 import { supabase } from "./supabase";
-import type { Category, DeliveryType, DisputedOrder, Listing, LocalizedText, Order, Review, Seller } from "./types";
+import type {
+  Category,
+  DeliveryType,
+  DisputedOrder,
+  Listing,
+  ListingReport,
+  LocalizedText,
+  Order,
+  Review,
+  Seller,
+} from "./types";
 
 const PUBLIC_SELLER_COLUMNS =
   "id, name, online, verified, created_at, rating, reviews_count, sales_count, response_time_minutes, city";
@@ -325,6 +335,30 @@ export async function resolveDispute(
     p_order_id: orderId,
     p_resolution: resolution,
   });
+  if (error) throw error;
+}
+
+export async function reportListing(listingId: string, reason: string): Promise<void> {
+  const { error } = await supabase.rpc("report_listing", { p_listing_id: listingId, p_reason: reason });
+  if (error) throw error;
+}
+
+export async function getReports(): Promise<ListingReport[]> {
+  const { data, error } = await supabase.rpc("admin_list_reports");
+  if (error) throw error;
+  return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+    id: row.id as string,
+    listingId: row.listing_id as string,
+    listingTitle: (row.listing_title as LocalizedText) ?? null,
+    listingStatus: row.listing_status as ListingReport["listingStatus"],
+    reporterName: (row.reporter_name as string) ?? "Пользователь",
+    reason: row.reason as string,
+    createdAt: (row.created_at as string)?.slice(0, 10) ?? "",
+  }));
+}
+
+export async function resolveReport(reportId: string, action: "dismiss" | "remove_listing"): Promise<void> {
+  const { error } = await supabase.rpc("admin_resolve_report", { p_report_id: reportId, p_action: action });
   if (error) throw error;
 }
 
