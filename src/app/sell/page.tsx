@@ -13,6 +13,9 @@ import type { DeliveryType } from "@/lib/types";
 
 const STEPS = ["sell.step1Title", "sell.step2Title", "sell.step3Title"] as const;
 
+// Must match commission_rate() in supabase/schema.sql
+const COMMISSION_RATE = 0.1;
+
 export default function SellPage() {
   const { t, tl } = useI18n();
   const { user, isLoading } = useAuth();
@@ -208,6 +211,12 @@ export default function SellPage() {
                   placeholder="100"
                   className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-foreground placeholder:text-muted/70 focus:border-brand/50 focus:outline-none"
                 />
+                {Number(price) > 0 && (
+                  <p className="mt-1.5 text-xs text-muted">
+                    {t("sell.youReceive")} {Math.round(Number(price) * (1 - COMMISSION_RATE))} {t("common.currency")}{" "}
+                    {t("sell.afterCommission")}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-muted">{t("sell.deliveryLabel")}</label>
@@ -272,6 +281,12 @@ export default function SellPage() {
               <p className="text-sm text-foreground">
                 {price || "0"} {t("common.currency")}
               </p>
+              {Number(price) > 0 && (
+                <p className="mt-1 text-xs text-muted">
+                  {t("sell.youReceive")} {Math.round(Number(price) * (1 - COMMISSION_RATE))} {t("common.currency")}{" "}
+                  {t("sell.afterCommission")}
+                </p>
+              )}
             </div>
           </div>
         )}

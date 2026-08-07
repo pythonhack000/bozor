@@ -100,7 +100,7 @@ create table if not exists public.wallet_transactions (
   id uuid primary key default gen_random_uuid(),
   profile_id uuid not null references public.profiles(id) on delete cascade,
   amount numeric not null,
-  type text not null check (type in ('topup', 'purchase_hold', 'purchase_release', 'refund')),
+  type text not null check (type in ('topup', 'purchase_hold', 'purchase_release', 'refund', 'commission')),
   order_id uuid references public.orders(id) on delete set null,
   created_at timestamptz not null default now()
 );
@@ -289,6 +289,14 @@ begin
 end;
 $$;
 
+create or replace function public.commission_rate()
+returns numeric
+language sql
+immutable
+as $$
+  select 0.10;
+$$;
+
 create or replace function public.confirm_order_receipt(p_order_id uuid)
 returns void
 language plpgsql
@@ -297,6 +305,8 @@ set search_path = public
 as $$
 declare
   v_order public.orders%rowtype;
+  v_commission numeric;
+  v_net numeric;
 begin
   select * into v_order from public.orders where id = p_order_id for update;
   if not found then
@@ -309,13 +319,18 @@ begin
     raise exception 'order not in a confirmable state';
   end if;
 
+  v_commission := round(v_order.price * public.commission_rate(), 2);
+  v_net := v_order.price - v_commission;
+
   update public.orders set status = 'released' where id = p_order_id;
   update public.profiles
-    set balance = balance + v_order.price, sales_count = sales_count + 1
+    set balance = balance + v_net, sales_count = sales_count + 1
     where id = v_order.seller_id;
 
   insert into public.wallet_transactions (profile_id, amount, type, order_id)
-  values (v_order.seller_id, v_order.price, 'purchase_release', p_order_id);
+  values (v_order.seller_id, v_net, 'purchase_release', p_order_id);
+  insert into public.wallet_transactions (profile_id, amount, type, order_id)
+  values (v_order.seller_id, -v_commission, 'commission', p_order_id);
 end;
 $$;
 
@@ -408,8 +423,10 @@ set search_path = public
 as $$
 declare
   v_order public.orders%rowtype;
+  v_commission numeric;
+  v_net numeric;
 begin
-  if not exists (select 1 from public.profiles where id = auth.uid() and is_admin) then
+  if not exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin) then
     raise exception 'not authorized';
   end if;
   if p_resolution not in ('refund_buyer', 'release_seller') then
@@ -430,12 +447,17 @@ begin
     insert into public.wallet_transactions (profile_id, amount, type, order_id)
     values (v_order.buyer_id, v_order.price, 'refund', p_order_id);
   else
+    v_commission := round(v_order.price * public.commission_rate(), 2);
+    v_net := v_order.price - v_commission;
+
     update public.profiles
-      set balance = balance + v_order.price, sales_count = sales_count + 1
+      set balance = balance + v_net, sales_count = sales_count + 1
       where id = v_order.seller_id;
     update public.orders set status = 'released' where id = p_order_id;
     insert into public.wallet_transactions (profile_id, amount, type, order_id)
-    values (v_order.seller_id, v_order.price, 'purchase_release', p_order_id);
+    values (v_order.seller_id, v_net, 'purchase_release', p_order_id);
+    insert into public.wallet_transactions (profile_id, amount, type, order_id)
+    values (v_order.seller_id, -v_commission, 'commission', p_order_id);
   end if;
 end;
 $$;

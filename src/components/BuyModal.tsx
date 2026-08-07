@@ -39,8 +39,8 @@ export function BuyModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-lg border border-border bg-surface-2 p-5 sm:rounded-lg">
+      <div className="absolute inset-0 animate-fade-in bg-black/60" onClick={onClose} />
+      <div className="relative max-h-[90vh] w-full max-w-md animate-scale-in overflow-y-auto rounded-t-lg border border-border bg-surface-2 p-5 sm:rounded-lg">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold text-foreground">{t("buyModal.title")}</h3>
           <button onClick={onClose} className="text-muted hover:text-foreground">
@@ -50,7 +50,7 @@ export function BuyModal({
 
         {status === "success" ? (
           <div className="flex flex-col items-center py-8 text-center">
-            <CheckCircle2 size={44} className="text-brand" />
+            <CheckCircle2 size={44} className="animate-scale-in text-brand" />
             <p className="mt-4 text-sm text-foreground">{tl(listing.title)}</p>
             <p className="mt-1 text-xs text-muted">
               #{listing.id.slice(0, 8).toUpperCase()} · {listing.price} {t("common.currency")}

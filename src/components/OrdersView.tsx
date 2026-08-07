@@ -12,6 +12,9 @@ import { DisputeModal } from "./DisputeModal";
 
 type Tab = "purchases" | "sales";
 
+// Must match commission_rate() in supabase/schema.sql
+const COMMISSION_RATE = 0.1;
+
 function statusKey(status: OrderStatus) {
   switch (status) {
     case "paid":
@@ -144,6 +147,13 @@ export function OrdersView() {
               {order.status === "disputed" && order.disputeReason && (
                 <p className="mt-2 rounded-lg bg-danger/5 px-3 py-2 text-xs text-danger">
                   {t("orders.disputeReasonLabel")}: {order.disputeReason}
+                </p>
+              )}
+
+              {tab === "sales" && order.status === "released" && (
+                <p className="mt-1 text-xs text-muted">
+                  {t("orders.netPayout")} {Math.round(order.price * (1 - COMMISSION_RATE))} {t("common.currency")}{" "}
+                  ({t("sell.afterCommission")})
                 </p>
               )}
 

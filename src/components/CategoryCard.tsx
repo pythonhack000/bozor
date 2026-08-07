@@ -11,7 +11,7 @@ export function CategoryCard({ category }: { category: Category }) {
   return (
     <Link
       href={`/catalog/${category.slug}`}
-      className="group flex items-center gap-3.5 rounded-lg border border-border bg-surface p-4 transition hover:border-brand/40 hover:bg-surface-2"
+      className="group flex items-center gap-3.5 rounded-lg border border-border bg-surface p-4 transition duration-200 hover:-translate-y-0.5 hover:border-brand/40 hover:bg-surface-2 hover:shadow-lg hover:shadow-black/20"
     >
       <CategoryImage category={category} size={44} />
       <span className="flex-1 min-w-0">

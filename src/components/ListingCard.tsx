@@ -16,7 +16,7 @@ export function ListingCard({ listing }: { listing: ListingWithRelations }) {
   return (
     <Link
       href={`/listing?id=${listing.id}`}
-      className="group flex flex-col gap-2 rounded-lg border border-border bg-surface p-3 transition hover:border-brand/40 hover:bg-surface-2"
+      className="group flex flex-col gap-2 rounded-lg border border-border bg-surface p-3 transition duration-200 hover:-translate-y-0.5 hover:border-brand/40 hover:bg-surface-2 hover:shadow-lg hover:shadow-black/20"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">

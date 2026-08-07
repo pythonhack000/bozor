@@ -51,7 +51,7 @@ export function Header() {
             <ChevronDown size={14} className={`transition ${catOpen ? "rotate-180" : ""}`} />
           </button>
           {catOpen && (
-            <div className="absolute left-0 z-30 mt-1.5 grid w-[560px] grid-cols-2 gap-1 rounded-lg border border-border bg-surface-2 p-3 shadow-2xl">
+            <div className="absolute left-0 z-30 mt-1.5 grid w-[560px] animate-fade-in-up grid-cols-2 gap-1 rounded-lg border border-border bg-surface-2 p-3 shadow-2xl">
               {categories.map((c) => (
                 <Link
                   key={c.slug}
@@ -108,7 +108,7 @@ export function Header() {
                   <ChevronDown size={13} className={`text-muted transition ${userOpen ? "rotate-180" : ""}`} />
                 </button>
                 {userOpen && (
-                  <div className="absolute right-0 z-30 mt-1.5 w-52 overflow-hidden rounded-lg border border-border bg-surface-2 py-1 shadow-xl">
+                  <div className="absolute right-0 z-30 mt-1.5 w-52 animate-fade-in-up overflow-hidden rounded-lg border border-border bg-surface-2 py-1 shadow-xl">
                     <Link
                       href="/profile"
                       onClick={() => setUserOpen(false)}

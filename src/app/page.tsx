@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ShieldCheck, Wallet, Search, ArrowRight, Wand2, HandCoins, CheckCircle2, Loader2 } from "lucide-react";
+import { ShieldCheck, Wallet, Search, ArrowRight, Wand2, HandCoins, CheckCircle2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useCategories } from "@/lib/categories-context";
 import { getFeaturedListings, type ListingWithRelations } from "@/lib/db";
 import { CategoryCard } from "@/components/CategoryCard";
 import { ListingCard } from "@/components/ListingCard";
+import { CategoryCardSkeleton, ListingCardSkeleton } from "@/components/Skeletons";
 
 const steps = [
   { icon: Search, titleKey: "home.step1Title", descKey: "home.step1Desc" },
@@ -18,7 +19,7 @@ const steps = [
 
 export default function Home() {
   const { t } = useI18n();
-  const { categories } = useCategories();
+  const { categories, isLoading: isLoadingCategories } = useCategories();
   const [featured, setFeatured] = useState<ListingWithRelations[]>([]);
   const [isLoadingFeatured, setIsLoadingFeatured] = useState(true);
 
@@ -32,7 +33,7 @@ export default function Home() {
     <div>
       <section className="border-b border-border">
         <div className="mx-auto max-w-7xl px-4 py-10 lg:px-6 lg:py-14">
-          <div className="mx-auto max-w-2xl text-center">
+          <div className="mx-auto max-w-2xl animate-fade-in-up text-center">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-brand/30 bg-brand/10 px-3 py-1 text-xs font-medium text-brand">
               <ShieldCheck size={13} />
               {t("common.tagline")}
@@ -75,7 +76,10 @@ export default function Home() {
                 <b className="font-semibold text-foreground">45 000+</b> {t("home.statDeals")}
               </span>
               <span className="text-muted">
-                <b className="font-semibold text-foreground">{categories.length}</b> {t("home.statCategories")}
+                <b className="font-semibold text-foreground">
+                  {isLoadingCategories ? "–" : categories.length}
+                </b>{" "}
+                {t("home.statCategories")}
               </span>
             </div>
           </div>
@@ -87,9 +91,13 @@ export default function Home() {
           <h2 className="text-xl font-bold text-foreground">{t("home.categoriesTitle")}</h2>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {categories.map((c) => (
-            <CategoryCard key={c.slug} category={c} />
-          ))}
+          {isLoadingCategories
+            ? Array.from({ length: 8 }).map((_, i) => <CategoryCardSkeleton key={i} />)
+            : categories.map((c, i) => (
+                <div key={c.slug} className="animate-fade-in-up" style={{ animationDelay: `${i * 40}ms` }}>
+                  <CategoryCard category={c} />
+                </div>
+              ))}
         </div>
       </section>
 
@@ -101,17 +109,15 @@ export default function Home() {
             <ArrowRight size={14} />
           </Link>
         </div>
-        {isLoadingFeatured ? (
-          <div className="flex justify-center py-10">
-            <Loader2 size={24} className="animate-spin text-muted" />
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {featured.map((l) => (
-              <ListingCard key={l.id} listing={l} />
-            ))}
-          </div>
-        )}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {isLoadingFeatured
+            ? Array.from({ length: 8 }).map((_, i) => <ListingCardSkeleton key={i} />)
+            : featured.map((l, i) => (
+                <div key={l.id} className="animate-fade-in-up" style={{ animationDelay: `${i * 40}ms` }}>
+                  <ListingCard listing={l} />
+                </div>
+              ))}
+        </div>
       </section>
 
       <section id="how-it-works" className="mx-auto max-w-7xl px-4 py-14 lg:px-6">

@@ -9,6 +9,7 @@ import type { DeliveryType } from "@/lib/types";
 import { CategoryImage } from "./CategoryImage";
 import { ListingCard } from "./ListingCard";
 import { Breadcrumbs } from "./Breadcrumbs";
+import { ListingCardSkeleton } from "./Skeletons";
 
 type SortKey = "popular" | "priceAsc" | "priceDesc" | "new";
 
@@ -220,8 +221,10 @@ export function CatalogView({ categorySlug }: { categorySlug?: string }) {
           </div>
 
           {isLoading ? (
-            <div className="flex justify-center py-16">
-              <Loader2 size={24} className="animate-spin text-muted" />
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <ListingCardSkeleton key={i} />
+              ))}
             </div>
           ) : results.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border py-16 text-center text-sm text-muted">
@@ -229,8 +232,10 @@ export function CatalogView({ categorySlug }: { categorySlug?: string }) {
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-              {results.map((l) => (
-                <ListingCard key={l.id} listing={l} />
+              {results.map((l, i) => (
+                <div key={l.id} className="animate-fade-in-up" style={{ animationDelay: `${Math.min(i, 12) * 30}ms` }}>
+                  <ListingCard listing={l} />
+                </div>
               ))}
             </div>
           )}
@@ -239,8 +244,8 @@ export function CatalogView({ categorySlug }: { categorySlug?: string }) {
 
       {filtersOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setFiltersOpen(false)} />
-          <div className="relative ml-auto flex h-full w-80 max-w-[85vw] flex-col overflow-y-auto bg-surface-2 p-4">
+          <div className="absolute inset-0 animate-fade-in bg-black/60" onClick={() => setFiltersOpen(false)} />
+          <div className="relative ml-auto flex h-full w-80 max-w-[85vw] animate-slide-in-right flex-col overflow-y-auto bg-surface-2 p-4">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-foreground">{t("catalog.filters")}</h3>
               <button onClick={() => setFiltersOpen(false)} className="text-muted">
