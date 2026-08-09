@@ -220,6 +220,8 @@ export const dictionaries: Record<Lang, Dict> = {
     "messages.noConversations": "Выберите диалог слева",
     "messages.typeMessage": "Введите сообщение...",
     "messages.empty": "У вас пока нет сообщений",
+    "messages.today": "Сегодня",
+    "messages.yesterday": "Вчера",
 
     "auth.loginRequired": "Войдите или зарегистрируйтесь, чтобы продолжить",
     "auth.passwordMismatch": "Пароли не совпадают",
@@ -461,6 +463,8 @@ export const dictionaries: Record<Lang, Dict> = {
     "messages.noConversations": "Сӯҳбатро аз чап интихоб кунед",
     "messages.typeMessage": "Паём нависед...",
     "messages.empty": "Шумо ҳанӯз паём надоред",
+    "messages.today": "Имрӯз",
+    "messages.yesterday": "Дирӯз",
 
     "auth.loginRequired": "Барои идома вориди сомона шавед ё бақайд гиред",
     "auth.passwordMismatch": "Паролҳо мувофиқат намекунанд",
@@ -702,6 +706,8 @@ export const dictionaries: Record<Lang, Dict> = {
     "messages.noConversations": "Select a conversation on the left",
     "messages.typeMessage": "Type a message...",
     "messages.empty": "You have no messages yet",
+    "messages.today": "Today",
+    "messages.yesterday": "Yesterday",
 
     "auth.loginRequired": "Log in or sign up to continue",
     "auth.passwordMismatch": "Passwords do not match",

@@ -11,9 +11,31 @@ import { useChat } from "@/lib/chat-context";
 import { getMessages, sendMessage, subscribeToMessages, type ChatMessage } from "@/lib/chat";
 import { Avatar } from "@/components/Avatar";
 import { VerifiedBadge } from "@/components/Badges";
+import type { Lang } from "@/lib/types";
+
+const DATE_LOCALES: Record<Lang, string> = { ru: "ru-RU", tj: "tg-TJ", en: "en-US" };
+
+function dayKey(iso: string) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function formatDayLabel(iso: string, lang: Lang, t: (key: string) => string) {
+  const d = new Date(iso);
+  const now = new Date();
+  const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
+  if (diffDays === 0) return t("messages.today");
+  if (diffDays === 1) return t("messages.yesterday");
+  const sameYear = d.getFullYear() === now.getFullYear();
+  return d.toLocaleDateString(
+    DATE_LOCALES[lang],
+    sameYear ? { day: "numeric", month: "long" } : { day: "numeric", month: "long", year: "numeric" }
+  );
+}
 
 export function MessagesView() {
-  const { t, tl } = useI18n();
+  const { t, tl, lang } = useI18n();
   const { user, isLoading } = useAuth();
   const { conversations, isLoading: loadingConversations, markRead, refresh } = useChat();
   const router = useRouter();
@@ -172,20 +194,30 @@ export function MessagesView() {
                     <Loader2 size={20} className="animate-spin text-muted" />
                   </div>
                 ) : (
-                  messages.map((m) => {
+                  messages.map((m, i) => {
                     const mine = m.senderId === user.id;
+                    const showDivider = i === 0 || dayKey(m.createdAt) !== dayKey(messages[i - 1].createdAt);
                     return (
-                      <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                        <div
-                          className={`max-w-[75%] rounded-lg px-3.5 py-2 text-sm ${
-                            mine
-                              ? "rounded-br-sm bg-brand text-brand-foreground"
-                              : "rounded-bl-sm bg-surface-2 text-foreground/90"
-                          }`}
-                        >
-                          {m.text}
-                          <div className={`mt-1 text-[10px] ${mine ? "text-brand-foreground/70" : "text-muted"}`}>
-                            {new Date(m.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}
+                      <div key={m.id}>
+                        {showDivider && (
+                          <div className="flex justify-center py-1.5">
+                            <span className="rounded-full bg-surface-2 px-3 py-1 text-[11px] font-medium text-muted">
+                              {formatDayLabel(m.createdAt, lang, t)}
+                            </span>
+                          </div>
+                        )}
+                        <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                          <div
+                            className={`max-w-[75%] rounded-lg px-3.5 py-2 text-sm ${
+                              mine
+                                ? "rounded-br-sm bg-brand text-brand-foreground"
+                                : "rounded-bl-sm bg-surface-2 text-foreground/90"
+                            }`}
+                          >
+                            {m.text}
+                            <div className={`mt-1 text-[10px] ${mine ? "text-brand-foreground/70" : "text-muted"}`}>
+                              {new Date(m.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}
+                            </div>
                           </div>
                         </div>
                       </div>
