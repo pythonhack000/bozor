@@ -1,51 +1,45 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Send, ShieldCheck, Loader2 } from "lucide-react";
+import { ArrowLeft, Send, ShieldCheck, Loader2, Tag } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useAuth } from "@/lib/auth-context";
-import {
-  getConversations,
-  getMessages,
-  sendMessage,
-  subscribeToMessages,
-  type ConversationSummary,
-  type ChatMessage,
-} from "@/lib/chat";
+import { useChat } from "@/lib/chat-context";
+import { getMessages, sendMessage, subscribeToMessages, type ChatMessage } from "@/lib/chat";
 import { Avatar } from "@/components/Avatar";
 import { VerifiedBadge } from "@/components/Badges";
 
 export function MessagesView() {
-  const { t } = useI18n();
+  const { t, tl } = useI18n();
   const { user, isLoading } = useAuth();
+  const { conversations, isLoading: loadingConversations, markRead } = useChat();
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
-  const [loadingConversations, setLoadingConversations] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const appliedUrlConversation = useRef(false);
 
   useEffect(() => {
     if (!isLoading && !user) router.replace("/auth?next=/messages");
   }, [user, isLoading, router]);
 
   useEffect(() => {
-    if (!user) return;
-    getConversations(user.id).then((rows) => {
-      setConversations(rows);
-      setLoadingConversations(false);
-      const fromUrl = searchParams.get("conversation");
-      if (fromUrl && rows.some((r) => r.id === fromUrl)) {
-        setActiveId(fromUrl);
-      }
-    });
+    if (appliedUrlConversation.current) return;
+    const fromUrl = searchParams.get("conversation");
+    if (fromUrl && conversations.some((r) => r.id === fromUrl)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setActiveId(fromUrl);
+      appliedUrlConversation.current = true;
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [conversations]);
 
   useEffect(() => {
     if (!activeId) return;
@@ -55,10 +49,13 @@ export function MessagesView() {
       setMessages(rows);
       setLoadingMessages(false);
     });
+    markRead(activeId);
     const unsubscribe = subscribeToMessages(activeId, (msg) => {
       setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+      if (msg.senderId !== user?.id) markRead(activeId);
     });
     return unsubscribe;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
   useEffect(() => {
@@ -81,8 +78,8 @@ export function MessagesView() {
     <div className="mx-auto max-w-6xl px-4 py-6 lg:px-6">
       <h1 className="mb-4 text-xl font-bold text-foreground">{t("messages.title")}</h1>
 
-      <div className="grid h-[600px] overflow-hidden rounded-lg border border-border bg-surface md:grid-cols-[300px_1fr]">
-        <div className={`overflow-y-auto border-border md:border-r ${active ? "hidden md:block" : ""}`}>
+      <div className="grid h-[600px] grid-rows-[minmax(0,1fr)] overflow-hidden rounded-lg border border-border bg-surface md:grid-cols-[300px_1fr]">
+        <div className={`min-h-0 overflow-y-auto border-border md:border-r ${active ? "hidden md:block" : ""}`}>
           {loadingConversations ? (
             <div className="flex justify-center py-8">
               <Loader2 size={20} className="animate-spin text-muted" />
@@ -106,12 +103,17 @@ export function MessagesView() {
                   </div>
                   <p className="truncate text-xs text-muted">{c.lastMessage?.text ?? ""}</p>
                 </div>
+                {c.unreadCount > 0 && (
+                  <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-danger px-1 text-[11px] font-semibold leading-none text-white">
+                    {c.unreadCount > 9 ? "9+" : c.unreadCount}
+                  </span>
+                )}
               </button>
             ))
           )}
         </div>
 
-        <div className={`flex flex-col ${active ? "" : "hidden md:flex"}`}>
+        <div className={`flex min-h-0 flex-col ${active ? "" : "hidden md:flex"}`}>
           {active ? (
             <>
               <div className="flex items-center gap-2.5 border-b border-border p-3.5">
@@ -133,6 +135,29 @@ export function MessagesView() {
                   {t("common.guarantee")}
                 </span>
               </div>
+
+              {active.listing && (
+                <Link
+                  href={`/listing?id=${active.listing.id}`}
+                  className="flex shrink-0 items-center gap-2.5 border-b border-border bg-surface-2/60 p-2.5 transition hover:bg-surface-2"
+                >
+                  <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md bg-surface">
+                    {active.listing.image ? (
+                      <Image src={active.listing.image} alt={tl(active.listing.title)} fill sizes="40px" className="object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-muted">
+                        <Tag size={16} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-medium text-foreground">{tl(active.listing.title)}</p>
+                    <p className="text-[11px] text-muted">
+                      {active.listing.price} {t("common.currency")}
+                    </p>
+                  </div>
+                </Link>
+              )}
 
               <div ref={scrollRef} className="scrollbar-thin flex-1 space-y-2.5 overflow-y-auto p-4">
                 {loadingMessages ? (

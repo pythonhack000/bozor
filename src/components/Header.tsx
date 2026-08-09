@@ -7,6 +7,7 @@ import { useI18n } from "@/lib/i18n-context";
 import { useAuth } from "@/lib/auth-context";
 import { useCategories } from "@/lib/categories-context";
 import { useWallet } from "@/lib/wallet-context";
+import { useChat } from "@/lib/chat-context";
 import { CategoryImage } from "./CategoryImage";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { Avatar } from "./Avatar";
@@ -17,6 +18,7 @@ export function Header() {
   const { user, logout } = useAuth();
   const { categories } = useCategories();
   const { balance } = useWallet();
+  const { unreadCount } = useChat();
   const [catOpen, setCatOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -81,10 +83,15 @@ export function Header() {
         <nav className="ml-auto hidden items-center gap-1 lg:flex">
           <Link
             href="/messages"
-            className="rounded-lg p-2 text-muted transition hover:bg-surface hover:text-foreground"
+            className="relative rounded-lg p-2 text-muted transition hover:bg-surface hover:text-foreground"
             aria-label={t("common.messages")}
           >
             <MessageCircle size={19} />
+            {unreadCount > 0 && (
+              <span className="absolute top-0.5 right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold leading-none text-white">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
           </Link>
           <LanguageSwitcher />
           {user ? (
@@ -248,10 +255,15 @@ export function Header() {
             <Link
               href="/messages"
               onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-foreground/90"
+              className="relative flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-foreground/90"
             >
               <MessageCircle size={16} />
               {t("common.messages")}
+              {unreadCount > 0 && (
+                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-semibold leading-none text-white">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
             </Link>
             {user ? (
               <button

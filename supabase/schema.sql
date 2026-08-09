@@ -67,6 +67,8 @@ create table if not exists public.conversations (
   buyer_id uuid not null references public.profiles(id) on delete cascade,
   seller_id uuid not null references public.profiles(id) on delete cascade,
   listing_id uuid references public.listings(id) on delete set null,
+  buyer_last_read_at timestamptz,
+  seller_last_read_at timestamptz,
   created_at timestamptz not null default now(),
   unique (buyer_id, seller_id, listing_id)
 );
@@ -358,15 +360,31 @@ begin
 end;
 $$;
 
+create or replace function public.mark_conversation_read(p_conversation_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.conversations
+    set buyer_last_read_at = case when buyer_id = auth.uid() then now() else buyer_last_read_at end,
+        seller_last_read_at = case when seller_id = auth.uid() then now() else seller_last_read_at end
+    where id = p_conversation_id and (buyer_id = auth.uid() or seller_id = auth.uid());
+end;
+$$;
+
 revoke execute on function public.get_my_balance() from public;
 revoke execute on function public.topup_balance(numeric) from public;
 revoke execute on function public.purchase_listing(uuid) from public;
 revoke execute on function public.confirm_order_receipt(uuid) from public;
+revoke execute on function public.mark_conversation_read(uuid) from public;
 
 grant execute on function public.get_my_balance() to authenticated;
 grant execute on function public.topup_balance(numeric) to authenticated;
 grant execute on function public.purchase_listing(uuid) to authenticated;
 grant execute on function public.confirm_order_receipt(uuid) to authenticated;
+grant execute on function public.mark_conversation_read(uuid) to authenticated;
 
 -- Dispute / arbitration
 -- (is_admin is already excluded from the UPDATE grant list above, so no

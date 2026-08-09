@@ -5,6 +5,7 @@ import { I18nProvider } from "@/lib/i18n-context";
 import { AuthProvider } from "@/lib/auth-context";
 import { CategoriesProvider } from "@/lib/categories-context";
 import { WalletProvider } from "@/lib/wallet-context";
+import { ChatProvider } from "@/lib/chat-context";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 
@@ -35,11 +36,13 @@ export default function RootLayout({
         <I18nProvider>
           <AuthProvider>
             <WalletProvider>
-              <CategoriesProvider>
-                <Header />
-                <main className="flex-1">{children}</main>
-                <Footer />
-              </CategoriesProvider>
+              <ChatProvider>
+                <CategoriesProvider>
+                  <Header />
+                  <main className="flex-1">{children}</main>
+                  <Footer />
+                </CategoriesProvider>
+              </ChatProvider>
             </WalletProvider>
           </AuthProvider>
         </I18nProvider>

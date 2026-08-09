@@ -1,9 +1,12 @@
 import { supabase } from "./supabase";
+import type { LocalizedText } from "./types";
 
 export interface ConversationSummary {
   id: string;
   otherParty: { id: string; name: string; online: boolean; verified: boolean };
   lastMessage: { text: string; createdAt: string } | null;
+  listing: { id: string; title: LocalizedText; image: string | null; price: number } | null;
+  unreadCount: number;
 }
 
 export interface ChatMessage {
@@ -37,16 +40,19 @@ interface ConversationRow {
   id: string;
   buyer_id: string;
   seller_id: string;
+  buyer_last_read_at: string | null;
+  seller_last_read_at: string | null;
   buyer: { id: string; name: string; online: boolean; verified: boolean };
   seller: { id: string; name: string; online: boolean; verified: boolean };
-  messages: { text: string; created_at: string }[];
+  listing: { id: string; title: LocalizedText; images: string[]; price: number } | null;
+  messages: { sender_id: string; text: string; created_at: string }[];
 }
 
 export async function getConversations(userId: string): Promise<ConversationSummary[]> {
   const { data, error } = await supabase
     .from("conversations")
     .select(
-      "id, buyer_id, seller_id, buyer:profiles!buyer_id(id,name,online,verified), seller:profiles!seller_id(id,name,online,verified), messages(text, created_at)"
+      "id, buyer_id, seller_id, buyer_last_read_at, seller_last_read_at, buyer:profiles!buyer_id(id,name,online,verified), seller:profiles!seller_id(id,name,online,verified), listing:listings(id,title,images,price), messages(sender_id, text, created_at)"
     )
     .or(`buyer_id.eq.${userId},seller_id.eq.${userId}`)
     .order("created_at", { ascending: false });
@@ -55,14 +61,27 @@ export async function getConversations(userId: string): Promise<ConversationSumm
   return ((data ?? []) as unknown as ConversationRow[]).map((row) => {
     const isBuyer = row.buyer_id === userId;
     const other = isBuyer ? row.seller : row.buyer;
+    const myLastReadAt = isBuyer ? row.buyer_last_read_at : row.seller_last_read_at;
     const msgs = [...(row.messages ?? [])].sort((a, b) => a.created_at.localeCompare(b.created_at));
     const last = msgs[msgs.length - 1];
+    const unreadCount = msgs.filter(
+      (m) => m.sender_id !== userId && (!myLastReadAt || m.created_at > myLastReadAt)
+    ).length;
     return {
       id: row.id,
       otherParty: other,
       lastMessage: last ? { text: last.text, createdAt: last.created_at } : null,
+      listing: row.listing
+        ? { id: row.listing.id, title: row.listing.title, image: row.listing.images?.[0] ?? null, price: Number(row.listing.price) }
+        : null,
+      unreadCount,
     };
   });
+}
+
+export async function markConversationRead(conversationId: string): Promise<void> {
+  const { error } = await supabase.rpc("mark_conversation_read", { p_conversation_id: conversationId });
+  if (error) throw error;
 }
 
 export async function getMessages(conversationId: string): Promise<ChatMessage[]> {
@@ -101,6 +120,17 @@ export function subscribeToMessages(conversationId: string, onInsert: (message: 
         onInsert({ id: m.id, senderId: m.sender_id, text: m.text, createdAt: m.created_at });
       }
     )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
+
+export function subscribeToAllMessages(userId: string, onChange: () => void) {
+  const channel = supabase
+    .channel(`messages:all:${userId}`)
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, onChange)
     .subscribe();
 
   return () => {
