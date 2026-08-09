@@ -15,7 +15,7 @@ import { VerifiedBadge } from "@/components/Badges";
 export function MessagesView() {
   const { t, tl } = useI18n();
   const { user, isLoading } = useAuth();
-  const { conversations, isLoading: loadingConversations, markRead } = useChat();
+  const { conversations, isLoading: loadingConversations, markRead, refresh } = useChat();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -29,6 +29,13 @@ export function MessagesView() {
   useEffect(() => {
     if (!isLoading && !user) router.replace("/auth?next=/messages");
   }, [user, isLoading, router]);
+
+  useEffect(() => {
+    // A conversation may have just been created (e.g. from a listing's
+    // "message seller" button) after the global list was last fetched.
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (appliedUrlConversation.current) return;
