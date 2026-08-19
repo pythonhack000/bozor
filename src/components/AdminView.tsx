@@ -2,13 +2,48 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, ShieldAlert, Undo2, CheckCircle2, Flag, Ban, X } from "lucide-react";
+import { Loader2, ShieldAlert, Undo2, CheckCircle2, Flag, Ban, X, Check, FileText } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useAuth } from "@/lib/auth-context";
-import { getDisputedOrders, resolveDispute, getReports, resolveReport } from "@/lib/db";
-import type { DisputedOrder, ListingReport } from "@/lib/types";
+import {
+  getDisputedOrders,
+  resolveDispute,
+  getReports,
+  resolveReport,
+  adminListDeposits,
+  adminApproveDeposit,
+  adminRejectDeposit,
+  adminListWithdrawals,
+  adminApproveWithdrawal,
+  adminRejectWithdrawal,
+  adminListPaymentMethods,
+  adminUpdatePaymentMethod,
+  adminListKyc,
+  adminApproveKyc,
+  adminRejectKyc,
+} from "@/lib/db";
+import { getKycDocumentSignedUrl } from "@/lib/storage";
+import type {
+  DisputedOrder,
+  ListingReport,
+  DepositRequest,
+  WithdrawalRequest,
+  PaymentMethod,
+  KycSubmission,
+} from "@/lib/types";
 
-type Tab = "disputes" | "reports";
+type Tab = "disputes" | "reports" | "deposits" | "withdrawals" | "kyc" | "requisites";
+
+const TABS: Tab[] = ["disputes", "reports", "deposits", "withdrawals", "kyc", "requisites"];
+
+const TAB_LABEL: Record<Tab, string> = {
+  disputes: "admin.tabDisputes",
+  reports: "admin.tabReports",
+  deposits: "admin.tabDeposits",
+  withdrawals: "admin.tabWithdrawals",
+  kyc: "admin.tabKyc",
+  requisites: "admin.tabRequisites",
+};
 
 export function AdminView() {
   const { t, tl } = useI18n();
@@ -18,9 +53,15 @@ export function AdminView() {
   const [tab, setTab] = useState<Tab>("disputes");
   const [orders, setOrders] = useState<DisputedOrder[]>([]);
   const [reports, setReports] = useState<ListingReport[]>([]);
+  const [deposits, setDeposits] = useState<DepositRequest[]>([]);
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
+  const [kyc, setKyc] = useState<KycSubmission[]>([]);
+  const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(false);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectNote, setRejectNote] = useState("");
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/auth?next=/admin");
@@ -30,9 +71,20 @@ export function AdminView() {
     if (!user) return;
     setIsLoading(true);
     try {
-      const [disputeRows, reportRows] = await Promise.all([getDisputedOrders(), getReports()]);
+      const [disputeRows, reportRows, depositRows, withdrawalRows, kycRows, methodRows] = await Promise.all([
+        getDisputedOrders(),
+        getReports(),
+        adminListDeposits(),
+        adminListWithdrawals(),
+        adminListKyc(),
+        adminListPaymentMethods(),
+      ]);
       setOrders(disputeRows);
       setReports(reportRows);
+      setDeposits(depositRows);
+      setWithdrawals(withdrawalRows);
+      setKyc(kycRows);
+      setMethods(methodRows);
       setUnauthorized(false);
     } catch (err) {
       console.error("Failed to load moderation queues", err);
@@ -74,6 +126,32 @@ export function AdminView() {
     }
   };
 
+  const runAction = async (id: string, fn: () => Promise<void>) => {
+    setResolvingId(id);
+    try {
+      await fn();
+      setRejectingId(null);
+      setRejectNote("");
+      await load();
+    } catch (err) {
+      console.error("Payment action failed", err);
+    } finally {
+      setResolvingId(null);
+    }
+  };
+
+  const saveMethod = async (input: {
+    code: string;
+    details: string;
+    network?: string;
+    minAmount: number;
+    maxAmount: number;
+    enabled: boolean;
+  }) => {
+    await adminUpdatePaymentMethod(input);
+    await load();
+  };
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 lg:px-6">
       <h1 className="mb-4 flex items-center gap-2 text-xl font-bold text-foreground">
@@ -81,16 +159,16 @@ export function AdminView() {
         {t("admin.title")}
       </h1>
 
-      <div className="mb-4 flex gap-1 rounded-lg border border-border bg-surface p-1">
-        {(["disputes", "reports"] as Tab[]).map((tabKey) => (
+      <div className="mb-4 flex gap-1 overflow-x-auto rounded-lg border border-border bg-surface p-1">
+        {TABS.map((tabKey) => (
           <button
             key={tabKey}
             onClick={() => setTab(tabKey)}
-            className={`flex-1 rounded-md py-2 text-sm font-medium transition ${
+            className={`flex-1 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition ${
               tab === tabKey ? "bg-brand text-brand-foreground" : "text-muted hover:text-foreground"
             }`}
           >
-            {t(tabKey === "disputes" ? "admin.tabDisputes" : "admin.tabReports")}
+            {t(TAB_LABEL[tabKey])}
           </button>
         ))}
       </div>
@@ -105,9 +183,7 @@ export function AdminView() {
         </div>
       ) : tab === "disputes" ? (
         orders.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border py-16 text-center text-sm text-muted">
-            {t("admin.empty")}
-          </div>
+          <Empty text={t("admin.empty")} />
         ) : (
           <div className="space-y-3">
             {orders.map((order) => (
@@ -134,11 +210,7 @@ export function AdminView() {
                     disabled={resolvingId === order.id}
                     className="flex items-center gap-1.5 rounded-lg border border-border px-3.5 py-2 text-xs font-semibold text-foreground/90 transition hover:border-brand/40 disabled:opacity-60"
                   >
-                    {resolvingId === order.id ? (
-                      <Loader2 size={13} className="animate-spin" />
-                    ) : (
-                      <Undo2 size={13} />
-                    )}
+                    {resolvingId === order.id ? <Loader2 size={13} className="animate-spin" /> : <Undo2 size={13} />}
                     {t("admin.refundBuyer")}
                   </button>
                   <button
@@ -158,51 +230,376 @@ export function AdminView() {
             ))}
           </div>
         )
-      ) : reports.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border py-16 text-center text-sm text-muted">
-          {t("admin.reportsEmpty")}
-        </div>
+      ) : tab === "reports" ? (
+        reports.length === 0 ? (
+          <Empty text={t("admin.reportsEmpty")} />
+        ) : (
+          <div className="space-y-3">
+            {reports.map((report) => (
+              <div key={report.id} className="rounded-lg border border-danger/30 bg-surface p-4">
+                <div className="flex items-center gap-2">
+                  <Flag size={13} className="shrink-0 text-danger" />
+                  <p className="text-sm font-medium text-foreground">
+                    {report.listingTitle
+                      ? tl(report.listingTitle)
+                      : `#${report.listingId.slice(0, 8).toUpperCase()}`}
+                  </p>
+                </div>
+                <p className="mt-0.5 text-xs text-muted">
+                  {t("admin.reportedBy")}: {report.reporterName} · {report.createdAt}
+                </p>
+                <p className="mt-2 rounded-lg bg-danger/5 px-3 py-2 text-xs text-danger">{report.reason}</p>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => resolveReportAction(report.id, "dismiss")}
+                    disabled={resolvingId === report.id}
+                    className="flex items-center gap-1.5 rounded-lg border border-border px-3.5 py-2 text-xs font-semibold text-foreground/90 transition hover:border-brand/40 disabled:opacity-60"
+                  >
+                    {resolvingId === report.id ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
+                    {t("admin.dismissReport")}
+                  </button>
+                  <button
+                    onClick={() => resolveReportAction(report.id, "remove_listing")}
+                    disabled={resolvingId === report.id}
+                    className="flex items-center gap-1.5 rounded-lg bg-danger px-3.5 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
+                  >
+                    {resolvingId === report.id ? <Loader2 size={13} className="animate-spin" /> : <Ban size={13} />}
+                    {t("admin.removeListing")}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      ) : tab === "deposits" ? (
+        deposits.length === 0 ? (
+          <Empty text={t("admin.depositsEmpty")} />
+        ) : (
+          <div className="space-y-3">
+            {deposits.map((d) => (
+              <div key={d.id} className="rounded-lg border border-border bg-surface p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-foreground">
+                    +{d.amount} {t("common.currency")}
+                  </p>
+                  <span className="text-xs text-muted">{d.createdAt}</span>
+                </div>
+                <div className="mt-2 grid gap-1 text-xs text-muted sm:grid-cols-2">
+                  <span>
+                    {t("admin.user")}: {d.userName}
+                  </span>
+                  <span>
+                    {t("admin.method")}: {d.methodName ? tl(d.methodName) : d.methodCode}
+                  </span>
+                  <span>
+                    {t("admin.reference")}: <span className="font-mono text-gold">{d.referenceCode}</span>
+                  </span>
+                </div>
+                {d.proof && (
+                  <p className="mt-2 rounded-lg bg-surface-2 px-3 py-2 text-xs break-all text-foreground/80">
+                    {t("admin.proof")}: {d.proof}
+                  </p>
+                )}
+                <ApproveRejectRow
+                  id={d.id}
+                  resolvingId={resolvingId}
+                  rejectingId={rejectingId}
+                  rejectNote={rejectNote}
+                  setRejectNote={setRejectNote}
+                  startReject={() => setRejectingId(d.id)}
+                  cancelReject={() => setRejectingId(null)}
+                  onApprove={() => runAction(d.id, () => adminApproveDeposit(d.id))}
+                  onReject={() => runAction(d.id, () => adminRejectDeposit(d.id, rejectNote))}
+                />
+              </div>
+            ))}
+          </div>
+        )
+      ) : tab === "withdrawals" ? (
+        withdrawals.length === 0 ? (
+          <Empty text={t("admin.withdrawalsEmpty")} />
+        ) : (
+          <div className="space-y-3">
+            {withdrawals.map((w) => (
+              <div key={w.id} className="rounded-lg border border-border bg-surface p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-foreground">
+                    −{w.amount} {t("common.currency")}
+                  </p>
+                  <span className="text-xs text-muted">{w.createdAt}</span>
+                </div>
+                <div className="mt-2 grid gap-1 text-xs text-muted sm:grid-cols-2">
+                  <span>
+                    {t("admin.user")}: {w.userName}
+                  </span>
+                  <span>
+                    {t("admin.method")}: {w.methodName ? tl(w.methodName) : w.methodCode}
+                  </span>
+                </div>
+                <p className="mt-2 rounded-lg bg-surface-2 px-3 py-2 text-xs break-all text-foreground/80">
+                  {t("admin.destination")}: {w.destination}
+                </p>
+                <ApproveRejectRow
+                  id={w.id}
+                  resolvingId={resolvingId}
+                  rejectingId={rejectingId}
+                  rejectNote={rejectNote}
+                  setRejectNote={setRejectNote}
+                  startReject={() => setRejectingId(w.id)}
+                  cancelReject={() => setRejectingId(null)}
+                  onApprove={() => runAction(w.id, () => adminApproveWithdrawal(w.id))}
+                  onReject={() => runAction(w.id, () => adminRejectWithdrawal(w.id, rejectNote))}
+                />
+              </div>
+            ))}
+          </div>
+        )
+      ) : tab === "kyc" ? (
+        kyc.length === 0 ? (
+          <Empty text={t("admin.kycEmpty")} />
+        ) : (
+          <div className="space-y-3">
+            {kyc.map((k) => (
+              <div key={k.id} className="rounded-lg border border-border bg-surface p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-foreground">{k.fullName}</p>
+                  <span className="text-xs text-muted">{k.createdAt}</span>
+                </div>
+                <div className="mt-2 grid gap-1 text-xs text-muted sm:grid-cols-2">
+                  <span>
+                    {t("admin.user")}: {k.userName}
+                  </span>
+                  <span>{t("admin.kycPassport")}: {k.passportNumber}</span>
+                </div>
+                <button
+                  onClick={async () => {
+                    try {
+                      const url = await getKycDocumentSignedUrl(k.documentPath);
+                      window.open(url, "_blank", "noopener,noreferrer");
+                    } catch (err) {
+                      console.error("Failed to open KYC document", err);
+                    }
+                  }}
+                  className="mt-2 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-foreground/80 transition hover:border-brand/40"
+                >
+                  <FileText size={13} />
+                  {t("admin.kycViewDocument")}
+                </button>
+                <ApproveRejectRow
+                  id={k.id}
+                  resolvingId={resolvingId}
+                  rejectingId={rejectingId}
+                  rejectNote={rejectNote}
+                  setRejectNote={setRejectNote}
+                  startReject={() => setRejectingId(k.id)}
+                  cancelReject={() => setRejectingId(null)}
+                  onApprove={() => runAction(k.id, () => adminApproveKyc(k.id))}
+                  onReject={() => runAction(k.id, () => adminRejectKyc(k.id, rejectNote))}
+                />
+              </div>
+            ))}
+          </div>
+        )
       ) : (
         <div className="space-y-3">
-          {reports.map((report) => (
-            <div key={report.id} className="rounded-lg border border-danger/30 bg-surface p-4">
-              <div className="flex items-center gap-2">
-                <Flag size={13} className="shrink-0 text-danger" />
-                <p className="text-sm font-medium text-foreground">
-                  {report.listingTitle ? tl(report.listingTitle) : `#${report.listingId.slice(0, 8).toUpperCase()}`}
-                </p>
-              </div>
-              <p className="mt-0.5 text-xs text-muted">
-                {t("admin.reportedBy")}: {report.reporterName} · {report.createdAt}
-              </p>
-              <p className="mt-2 rounded-lg bg-danger/5 px-3 py-2 text-xs text-danger">{report.reason}</p>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  onClick={() => resolveReportAction(report.id, "dismiss")}
-                  disabled={resolvingId === report.id}
-                  className="flex items-center gap-1.5 rounded-lg border border-border px-3.5 py-2 text-xs font-semibold text-foreground/90 transition hover:border-brand/40 disabled:opacity-60"
-                >
-                  {resolvingId === report.id ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
-                  {t("admin.dismissReport")}
-                </button>
-                <button
-                  onClick={() => resolveReportAction(report.id, "remove_listing")}
-                  disabled={resolvingId === report.id}
-                  className="flex items-center gap-1.5 rounded-lg bg-danger px-3.5 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
-                >
-                  {resolvingId === report.id ? (
-                    <Loader2 size={13} className="animate-spin" />
-                  ) : (
-                    <Ban size={13} />
-                  )}
-                  {t("admin.removeListing")}
-                </button>
-              </div>
-            </div>
+          {methods.map((m) => (
+            <MethodEditor key={m.code} method={m} onSave={saveMethod} />
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function Empty({ text }: { text: string }) {
+  return (
+    <div className="rounded-lg border border-dashed border-border py-16 text-center text-sm text-muted">{text}</div>
+  );
+}
+
+function ApproveRejectRow({
+  id,
+  resolvingId,
+  rejectingId,
+  rejectNote,
+  setRejectNote,
+  startReject,
+  cancelReject,
+  onApprove,
+  onReject,
+}: {
+  id: string;
+  resolvingId: string | null;
+  rejectingId: string | null;
+  rejectNote: string;
+  setRejectNote: (v: string) => void;
+  startReject: () => void;
+  cancelReject: () => void;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  const { t } = useI18n();
+  const busy = resolvingId === id;
+
+  if (rejectingId === id) {
+    return (
+      <div className="mt-3 space-y-2">
+        <input
+          value={rejectNote}
+          onChange={(e) => setRejectNote(e.target.value)}
+          placeholder={t("admin.rejectNotePlaceholder")}
+          className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground focus:border-brand/50 focus:outline-none"
+        />
+        <div className="flex gap-2">
+          <button
+            onClick={cancelReject}
+            disabled={busy}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3.5 py-2 text-xs font-semibold text-foreground/90 transition hover:border-brand/40 disabled:opacity-60"
+          >
+            <X size={13} />
+            {t("admin.cancel")}
+          </button>
+          <button
+            onClick={onReject}
+            disabled={busy}
+            className="flex items-center gap-1.5 rounded-lg bg-danger px-3.5 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
+          >
+            {busy ? <Loader2 size={13} className="animate-spin" /> : <Ban size={13} />}
+            {t("admin.confirmReject")}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      <button
+        onClick={onApprove}
+        disabled={busy}
+        className="flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-xs font-semibold text-brand-foreground transition hover:bg-brand-dark disabled:opacity-60"
+      >
+        {busy ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+        {t("admin.approve")}
+      </button>
+      <button
+        onClick={startReject}
+        disabled={busy}
+        className="flex items-center gap-1.5 rounded-lg border border-border px-3.5 py-2 text-xs font-semibold text-foreground/90 transition hover:border-danger/40 disabled:opacity-60"
+      >
+        <X size={13} />
+        {t("admin.reject")}
+      </button>
+    </div>
+  );
+}
+
+function MethodEditor({
+  method,
+  onSave,
+}: {
+  method: PaymentMethod;
+  onSave: (input: {
+    code: string;
+    details: string;
+    network?: string;
+    minAmount: number;
+    maxAmount: number;
+    enabled: boolean;
+  }) => Promise<void>;
+}) {
+  const { t, tl } = useI18n();
+  const [details, setDetails] = useState(method.details);
+  const [network, setNetwork] = useState(method.network ?? "");
+  const [minAmount, setMinAmount] = useState(String(method.minAmount));
+  const [maxAmount, setMaxAmount] = useState(String(method.maxAmount));
+  const [enabled, setEnabled] = useState(method.enabled);
+  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+
+  const save = async () => {
+    setStatus("saving");
+    try {
+      await onSave({
+        code: method.code,
+        details: details.trim(),
+        network: network.trim() || undefined,
+        minAmount: Number(minAmount),
+        maxAmount: Number(maxAmount),
+        enabled,
+      });
+      setStatus("saved");
+      setTimeout(() => setStatus("idle"), 2000);
+    } catch (err) {
+      console.error("Failed to save payment method", err);
+      setStatus("error");
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-border bg-surface p-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-foreground">{tl(method.name)}</h3>
+        <label className="flex items-center gap-2 text-xs text-foreground/90">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => setEnabled(e.target.checked)}
+            className="h-4 w-4 rounded border-border accent-[var(--brand)]"
+          />
+          {t("admin.reqEnabled")}
+        </label>
+      </div>
+
+      <label className="mt-3 block text-xs font-medium text-muted">{t("admin.reqDetails")}</label>
+      <input
+        value={details}
+        onChange={(e) => setDetails(e.target.value)}
+        placeholder={t("admin.reqDetailsPlaceholder")}
+        className="mt-1.5 w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-foreground focus:border-brand/50 focus:outline-none"
+      />
+
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <div>
+          <label className="block text-xs font-medium text-muted">{t("admin.reqNetwork")}</label>
+          <input
+            value={network}
+            onChange={(e) => setNetwork(e.target.value)}
+            placeholder="TRC20"
+            className="mt-1.5 w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-foreground focus:border-brand/50 focus:outline-none"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-muted">{t("admin.reqMin")}</label>
+          <input
+            type="number"
+            value={minAmount}
+            onChange={(e) => setMinAmount(e.target.value)}
+            className="mt-1.5 w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-foreground focus:border-brand/50 focus:outline-none"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-muted">{t("admin.reqMax")}</label>
+          <input
+            type="number"
+            value={maxAmount}
+            onChange={(e) => setMaxAmount(e.target.value)}
+            className="mt-1.5 w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-foreground focus:border-brand/50 focus:outline-none"
+          />
+        </div>
+      </div>
+
+      {status === "error" && <p className="mt-2 text-xs text-danger">{t("profile.saveError")}</p>}
+
+      <button
+        onClick={save}
+        disabled={status === "saving"}
+        className="mt-3 flex items-center gap-2 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-brand-foreground transition hover:bg-brand-dark disabled:opacity-60"
+      >
+        {status === "saving" && <Loader2 size={15} className="animate-spin" />}
+        {status === "saved" && <Check size={15} />}
+        {t(status === "saved" ? "admin.reqSaved" : "admin.reqSave")}
+      </button>
     </div>
   );
 }

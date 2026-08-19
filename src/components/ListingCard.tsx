@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Heart, Zap } from "lucide-react";
+import { Heart, Zap, Gift } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import type { ListingWithRelations } from "@/lib/db";
 import { CategoryImage } from "./CategoryImage";
@@ -40,6 +40,12 @@ export function ListingCard({ listing }: { listing: ListingWithRelations }) {
       </h3>
 
       <div className="flex flex-wrap items-center gap-1">
+        {listing.kind === "topup" && (
+          <span className="flex items-center gap-0.5 rounded-full bg-brand/15 px-1.5 py-0.5 text-[10px] font-medium text-brand">
+            <Gift size={9} />
+            {t("sell.kindTopup")}
+          </span>
+        )}
         {listing.delivery === "instant" && (
           <span className="flex items-center gap-0.5 rounded-full bg-gold/15 px-1.5 py-0.5 text-[10px] font-medium text-gold">
             <Zap size={9} className="fill-gold" />

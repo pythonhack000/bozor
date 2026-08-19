@@ -38,9 +38,15 @@ export type DeliveryType = "instant" | "manual";
 
 export type ListingStatus = "pending" | "active" | "sold" | "rejected";
 
+// "account" = a ready-made account for sale. "topup" = a donate/top-up
+// service (e.g. PUBG Mobile UC, Standoff 2 Gold) delivered into the buyer's
+// own game account — the buyer supplies their in-game ID at purchase time.
+export type ListingKind = "account" | "topup";
+
 export interface Listing {
   id: string;
   categorySlug: string;
+  kind: ListingKind;
   title: LocalizedText;
   description: LocalizedText;
   price: number;
@@ -57,7 +63,7 @@ export interface Listing {
   favorites: number;
 }
 
-export type OrderStatus = "paid" | "released" | "disputed" | "refunded";
+export type OrderStatus = "paid" | "delivered" | "released" | "disputed" | "refunded";
 
 export interface Order {
   id: string;
@@ -68,6 +74,8 @@ export interface Order {
   otherPartyName: string;
   price: number;
   status: OrderStatus;
+  credentials?: string;
+  buyerNote?: string;
   disputeReason?: string;
   createdAt: string;
 }
@@ -82,6 +90,60 @@ export interface DisputedOrder {
   sellerName: string;
   disputeReason: string;
   disputeOpenedBy: string;
+  createdAt: string;
+}
+
+export type PaymentMethodCode = "alif" | "dc" | "card" | "crypto";
+
+export interface PaymentMethod {
+  code: string;
+  name: LocalizedText;
+  details: string;
+  network?: string;
+  instructions?: LocalizedText;
+  minAmount: number;
+  maxAmount: number;
+  enabled: boolean;
+  sortOrder: number;
+}
+
+export type RequestStatus = "pending" | "approved" | "rejected";
+
+export interface DepositRequest {
+  id: string;
+  methodCode: string;
+  methodName?: LocalizedText;
+  amount: number;
+  referenceCode: string;
+  proof?: string;
+  status: RequestStatus;
+  adminNote?: string;
+  userName?: string;
+  createdAt: string;
+}
+
+export interface WithdrawalRequest {
+  id: string;
+  methodCode: string;
+  methodName?: LocalizedText;
+  amount: number;
+  destination: string;
+  status: RequestStatus;
+  adminNote?: string;
+  userName?: string;
+  createdAt: string;
+}
+
+export type KycStatus = "pending" | "approved" | "rejected";
+
+export interface KycSubmission {
+  id: string;
+  fullName: string;
+  passportNumber: string;
+  documentPath: string;
+  status: KycStatus;
+  adminNote?: string;
+  userName?: string;
   createdAt: string;
 }
 

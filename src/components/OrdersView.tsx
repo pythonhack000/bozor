@@ -2,11 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, CheckCircle2, AlertTriangle, Star } from "lucide-react";
+import { Loader2, CheckCircle2, AlertTriangle, Star, KeyRound, Send } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useAuth } from "@/lib/auth-context";
 import { useWallet } from "@/lib/wallet-context";
-import { getOrdersAsBuyer, getOrdersAsSeller, confirmOrderReceipt, getMyReviewedListingIds } from "@/lib/db";
+import {
+  getOrdersAsBuyer,
+  getOrdersAsSeller,
+  confirmOrderReceipt,
+  deliverOrder,
+  getMyReviewedListingIds,
+} from "@/lib/db";
 import type { Order, OrderStatus } from "@/lib/types";
 import { DisputeModal } from "./DisputeModal";
 import { ReviewModal } from "./ReviewModal";
@@ -20,6 +26,8 @@ function statusKey(status: OrderStatus) {
   switch (status) {
     case "paid":
       return "orders.statusPaid";
+    case "delivered":
+      return "orders.statusDelivered";
     case "released":
       return "orders.statusReleased";
     case "disputed":
@@ -33,6 +41,8 @@ function statusClass(status: OrderStatus) {
   switch (status) {
     case "paid":
       return "bg-gold/15 text-gold";
+    case "delivered":
+      return "bg-brand/15 text-brand";
     case "released":
       return "bg-brand/15 text-brand";
     case "disputed":
@@ -40,6 +50,50 @@ function statusClass(status: OrderStatus) {
     case "refunded":
       return "bg-surface-2 text-muted";
   }
+}
+
+function DeliverForm({ orderId, onDelivered }: { orderId: string; onDelivered: () => void }) {
+  const { t } = useI18n();
+  const [credentials, setCredentials] = useState("");
+  const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
+
+  const submit = async () => {
+    if (!credentials.trim()) return;
+    setStatus("saving");
+    try {
+      await deliverOrder(orderId, credentials.trim());
+      onDelivered();
+    } catch (err) {
+      console.error("Failed to deliver order", err);
+      setStatus("error");
+    }
+  };
+
+  return (
+    <div className="mt-3 rounded-lg border border-border bg-surface-2 p-3">
+      <p className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+        <KeyRound size={13} className="text-brand" />
+        {t("orders.deliverTitle")}
+      </p>
+      <p className="mt-1 text-xs text-muted">{t("orders.deliverDesc")}</p>
+      <textarea
+        value={credentials}
+        onChange={(e) => setCredentials(e.target.value)}
+        placeholder={t("orders.deliverPlaceholder")}
+        rows={3}
+        className="mt-2 w-full resize-none rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground focus:border-brand/50 focus:outline-none"
+      />
+      {status === "error" && <p className="mt-1.5 text-xs text-danger">{t("orders.deliverError")}</p>}
+      <button
+        onClick={submit}
+        disabled={status === "saving" || !credentials.trim()}
+        className="mt-2 flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-xs font-semibold text-brand-foreground transition hover:bg-brand-dark disabled:opacity-60"
+      >
+        {status === "saving" ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+        {t("orders.deliverSubmit")}
+      </button>
+    </div>
+  );
 }
 
 export function OrdersView() {
@@ -152,6 +206,12 @@ export function OrdersView() {
                 </div>
               </div>
 
+              {tab === "sales" && order.buyerNote && (
+                <p className="mt-2 rounded-lg bg-gold/5 px-3 py-2 text-xs text-foreground/90">
+                  {t("orders.buyerNoteLabel")}: {order.buyerNote}
+                </p>
+              )}
+
               {order.status === "disputed" && order.disputeReason && (
                 <p className="mt-2 rounded-lg bg-danger/5 px-3 py-2 text-xs text-danger">
                   {t("orders.disputeReasonLabel")}: {order.disputeReason}
@@ -185,29 +245,62 @@ export function OrdersView() {
               )}
 
               {order.status === "paid" && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {tab === "purchases" && (
-                    <button
-                      onClick={() => confirmReceipt(order.id)}
-                      disabled={confirmingId === order.id}
-                      className="flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-xs font-semibold text-brand-foreground transition hover:bg-brand-dark disabled:opacity-60"
-                    >
-                      {confirmingId === order.id ? (
-                        <Loader2 size={13} className="animate-spin" />
-                      ) : (
-                        <CheckCircle2 size={13} />
-                      )}
-                      {t("orders.confirmReceipt")}
-                    </button>
+                <>
+                  {tab === "sales" ? (
+                    <DeliverForm orderId={order.id} onDelivered={load} />
+                  ) : (
+                    <p className="mt-3 text-xs text-muted">{t("orders.waitingDelivery")}</p>
                   )}
-                  <button
-                    onClick={() => setDisputingId(order.id)}
-                    className="flex items-center gap-1.5 rounded-lg border border-danger/40 px-3.5 py-2 text-xs font-semibold text-danger transition hover:bg-danger/10"
-                  >
-                    <AlertTriangle size={13} />
-                    {t("orders.openDispute")}
-                  </button>
-                </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setDisputingId(order.id)}
+                      className="flex items-center gap-1.5 rounded-lg border border-danger/40 px-3.5 py-2 text-xs font-semibold text-danger transition hover:bg-danger/10"
+                    >
+                      <AlertTriangle size={13} />
+                      {t("orders.openDispute")}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {order.status === "delivered" && (
+                <>
+                  {tab === "purchases" && order.credentials && (
+                    <div className="mt-3 rounded-lg border border-brand/30 bg-brand/5 px-3 py-2.5">
+                      <p className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                        <KeyRound size={13} className="text-brand" />
+                        {t("orders.credentialsLabel")}
+                      </p>
+                      <p className="mt-1 text-xs break-all whitespace-pre-wrap text-foreground/90">
+                        {order.credentials}
+                      </p>
+                    </div>
+                  )}
+                  {tab === "sales" && <p className="mt-3 text-xs text-muted">{t("orders.waitingConfirm")}</p>}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {tab === "purchases" && (
+                      <button
+                        onClick={() => confirmReceipt(order.id)}
+                        disabled={confirmingId === order.id}
+                        className="flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-xs font-semibold text-brand-foreground transition hover:bg-brand-dark disabled:opacity-60"
+                      >
+                        {confirmingId === order.id ? (
+                          <Loader2 size={13} className="animate-spin" />
+                        ) : (
+                          <CheckCircle2 size={13} />
+                        )}
+                        {t("orders.confirmReceipt")}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setDisputingId(order.id)}
+                      className="flex items-center gap-1.5 rounded-lg border border-danger/40 px-3.5 py-2 text-xs font-semibold text-danger transition hover:bg-danger/10"
+                    >
+                      <AlertTriangle size={13} />
+                      {t("orders.openDispute")}
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           ))}

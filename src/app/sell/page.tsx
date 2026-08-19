@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, ImagePlus, CheckCircle2, ArrowRight, X, Loader2, AlertTriangle } from "lucide-react";
+import { Check, ImagePlus, CheckCircle2, ArrowRight, X, Loader2, AlertTriangle, ShieldAlert } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useAuth } from "@/lib/auth-context";
 import { useCategories } from "@/lib/categories-context";
 import { CategoryImage } from "@/components/CategoryImage";
-import { createListing } from "@/lib/db";
+import { createListing, getSeller } from "@/lib/db";
 import { uploadListingPhotos } from "@/lib/storage";
-import type { DeliveryType } from "@/lib/types";
+import type { DeliveryType, ListingKind } from "@/lib/types";
 
 const STEPS = ["sell.step1Title", "sell.step2Title", "sell.step3Title"] as const;
 
@@ -26,8 +27,20 @@ export default function SellPage() {
     if (!isLoading && !user) router.replace("/auth?next=/sell");
   }, [user, isLoading, router]);
 
+  const [verified, setVerified] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!user) return;
+    getSeller(user.id)
+      .then((s) => setVerified(s?.verified ?? false))
+      .catch((err) => {
+        console.error("Failed to load verification status", err);
+        setVerified(false);
+      });
+  }, [user]);
+
   const [step, setStep] = useState(0);
   const [categorySlug, setCategorySlug] = useState<string | null>(null);
+  const [kind, setKind] = useState<ListingKind>("account");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
@@ -83,6 +96,7 @@ export default function SellPage() {
       const created = await createListing({
         categorySlug,
         sellerId: user.id,
+        kind,
         title,
         description,
         price: Number(price),
@@ -99,7 +113,24 @@ export default function SellPage() {
     }
   };
 
-  if (isLoading || !user) return null;
+  if (isLoading || !user || verified === null) return null;
+
+  if (!verified && !user.isAdmin) {
+    return (
+      <div className="mx-auto flex max-w-lg flex-col items-center px-4 py-24 text-center">
+        <ShieldAlert size={44} className="text-gold" />
+        <h1 className="mt-4 text-xl font-bold text-foreground">{t("sell.notVerifiedTitle")}</h1>
+        <p className="mt-2 text-sm text-muted">{t("sell.notVerifiedDesc")}</p>
+        <Link
+          href="/profile"
+          className="mt-6 flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-sm font-semibold text-brand-foreground hover:bg-brand-dark"
+        >
+          {t("sell.goVerify")}
+          <ArrowRight size={16} />
+        </Link>
+      </div>
+    );
+  }
 
   if (published) {
     return (
@@ -182,6 +213,28 @@ export default function SellPage() {
 
         {step === 1 && (
           <div className="space-y-4">
+            {user.isAdmin && (
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-muted">{t("sell.kindLabel")}</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["account", "topup"] as ListingKind[]).map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setKind(k)}
+                      className={`rounded-lg border px-3 py-2.5 text-sm font-medium transition ${
+                        kind === k ? "border-brand bg-brand/10 text-foreground" : "border-border text-foreground/80 hover:border-brand/30"
+                      }`}
+                    >
+                      {t(k === "account" ? "sell.kindAccount" : "sell.kindTopup")}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-xs text-muted">
+                  {t(kind === "account" ? "sell.kindAccountHint" : "sell.kindTopupHint")}
+                </p>
+              </div>
+            )}
             <div>
               <label className="mb-1.5 block text-xs font-medium text-muted">{t("sell.titleLabel")}</label>
               <input

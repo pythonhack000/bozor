@@ -2,13 +2,17 @@ import { supabase } from "./supabase";
 import type {
   Category,
   DeliveryType,
+  DepositRequest,
   DisputedOrder,
+  KycSubmission,
   Listing,
   ListingReport,
   LocalizedText,
   Order,
+  PaymentMethod,
   Review,
   Seller,
+  WithdrawalRequest,
 } from "./types";
 
 const PUBLIC_SELLER_COLUMNS =
@@ -58,6 +62,7 @@ function mapListingRow(row: Record<string, unknown>): Listing {
   return {
     id: row.id as string,
     categorySlug: row.category_slug as string,
+    kind: (row.kind as Listing["kind"]) ?? "account",
     title: row.title as LocalizedText,
     description: row.description as LocalizedText,
     price: Number(row.price),
@@ -133,6 +138,19 @@ export async function getAllListings(): Promise<ListingWithRelations[]> {
     .from("listings")
     .select(LISTING_WITH_RELATIONS_SELECT)
     .eq("status", "active")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapListingWithRelationsRow);
+}
+
+// Official donate/top-up store: only admin-owned 'topup' listings (enforced
+// by the listings insert RLS policy), shown together regardless of category.
+export async function getTopupListings(): Promise<ListingWithRelations[]> {
+  const { data, error } = await supabase
+    .from("listings")
+    .select(LISTING_WITH_RELATIONS_SELECT)
+    .eq("status", "active")
+    .eq("kind", "topup")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map(mapListingWithRelationsRow);
@@ -246,6 +264,7 @@ export async function hasReleasedOrder(buyerId: string, listingId: string): Prom
 export async function createListing(input: {
   categorySlug: string;
   sellerId: string;
+  kind: Listing["kind"];
   title: string;
   description: string;
   price: number;
@@ -257,6 +276,7 @@ export async function createListing(input: {
     .insert({
       category_slug: input.categorySlug,
       seller_id: input.sellerId,
+      kind: input.kind,
       title: { ru: input.title, tj: input.title, en: input.title },
       description: { ru: input.description, tj: input.description, en: input.description },
       price: input.price,
@@ -294,8 +314,179 @@ export async function topUpBalance(amount: number): Promise<number> {
   return Number(data);
 }
 
-export async function buyListing(listingId: string): Promise<string> {
-  const { data, error } = await supabase.rpc("purchase_listing", { p_listing_id: listingId });
+// ---- Payments: methods, deposits, withdrawals ----------------------------
+
+function mapPaymentMethodRow(row: Record<string, unknown>): PaymentMethod {
+  return {
+    code: row.code as string,
+    name: row.name as LocalizedText,
+    details: (row.details as string) ?? "",
+    network: (row.network as string) ?? undefined,
+    instructions: (row.instructions as LocalizedText) ?? undefined,
+    minAmount: Number(row.min_amount),
+    maxAmount: Number(row.max_amount),
+    enabled: Boolean(row.enabled),
+    sortOrder: Number(row.sort_order ?? 0),
+  };
+}
+
+export async function getPaymentMethods(): Promise<PaymentMethod[]> {
+  const { data, error } = await supabase
+    .from("payment_methods")
+    .select("*")
+    .eq("enabled", true)
+    .order("sort_order");
+  if (error) throw error;
+  return (data ?? []).map(mapPaymentMethodRow);
+}
+
+export async function requestDeposit(
+  methodCode: string,
+  amount: number,
+  proof?: string
+): Promise<{ id: string; referenceCode: string }> {
+  const { data, error } = await supabase.rpc("request_deposit", {
+    p_method_code: methodCode,
+    p_amount: amount,
+    p_proof: proof ?? null,
+  });
+  if (error) throw error;
+  const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown>;
+  return { id: row.id as string, referenceCode: row.reference_code as string };
+}
+
+export async function submitDepositProof(id: string, proof: string): Promise<void> {
+  const { error } = await supabase.rpc("submit_deposit_proof", { p_id: id, p_proof: proof });
+  if (error) throw error;
+}
+
+export async function requestWithdrawal(
+  methodCode: string,
+  amount: number,
+  destination: string
+): Promise<string> {
+  const { data, error } = await supabase.rpc("request_withdrawal", {
+    p_method_code: methodCode,
+    p_amount: amount,
+    p_destination: destination,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+function mapDepositRow(row: Record<string, unknown>): DepositRequest {
+  return {
+    id: row.id as string,
+    methodCode: row.method_code as string,
+    methodName: (row.method_name as LocalizedText) ?? undefined,
+    amount: Number(row.amount),
+    referenceCode: (row.reference_code as string) ?? "",
+    proof: (row.proof as string) ?? undefined,
+    status: (row.status as DepositRequest["status"]) ?? "pending",
+    adminNote: (row.admin_note as string) ?? undefined,
+    userName: (row.user_name as string) ?? undefined,
+    createdAt: (row.created_at as string)?.slice(0, 10) ?? "",
+  };
+}
+
+function mapWithdrawalRow(row: Record<string, unknown>): WithdrawalRequest {
+  return {
+    id: row.id as string,
+    methodCode: row.method_code as string,
+    methodName: (row.method_name as LocalizedText) ?? undefined,
+    amount: Number(row.amount),
+    destination: (row.destination as string) ?? "",
+    status: (row.status as WithdrawalRequest["status"]) ?? "pending",
+    adminNote: (row.admin_note as string) ?? undefined,
+    userName: (row.user_name as string) ?? undefined,
+    createdAt: (row.created_at as string)?.slice(0, 10) ?? "",
+  };
+}
+
+export async function getMyDeposits(userId: string): Promise<DepositRequest[]> {
+  const { data, error } = await supabase
+    .from("deposit_requests")
+    .select("*")
+    .eq("profile_id", userId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapDepositRow);
+}
+
+export async function getMyWithdrawals(userId: string): Promise<WithdrawalRequest[]> {
+  const { data, error } = await supabase
+    .from("withdrawal_requests")
+    .select("*")
+    .eq("profile_id", userId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapWithdrawalRow);
+}
+
+// ---- Admin: payment moderation + requisites ------------------------------
+
+export async function adminListDeposits(): Promise<DepositRequest[]> {
+  const { data, error } = await supabase.rpc("admin_list_deposits");
+  if (error) throw error;
+  return ((data ?? []) as Record<string, unknown>[]).map(mapDepositRow);
+}
+
+export async function adminApproveDeposit(id: string): Promise<void> {
+  const { error } = await supabase.rpc("admin_approve_deposit", { p_id: id });
+  if (error) throw error;
+}
+
+export async function adminRejectDeposit(id: string, note?: string): Promise<void> {
+  const { error } = await supabase.rpc("admin_reject_deposit", { p_id: id, p_note: note ?? null });
+  if (error) throw error;
+}
+
+export async function adminListWithdrawals(): Promise<WithdrawalRequest[]> {
+  const { data, error } = await supabase.rpc("admin_list_withdrawals");
+  if (error) throw error;
+  return ((data ?? []) as Record<string, unknown>[]).map(mapWithdrawalRow);
+}
+
+export async function adminApproveWithdrawal(id: string): Promise<void> {
+  const { error } = await supabase.rpc("admin_approve_withdrawal", { p_id: id });
+  if (error) throw error;
+}
+
+export async function adminRejectWithdrawal(id: string, note?: string): Promise<void> {
+  const { error } = await supabase.rpc("admin_reject_withdrawal", { p_id: id, p_note: note ?? null });
+  if (error) throw error;
+}
+
+export async function adminListPaymentMethods(): Promise<PaymentMethod[]> {
+  const { data, error } = await supabase.rpc("admin_list_payment_methods");
+  if (error) throw error;
+  return ((data ?? []) as Record<string, unknown>[]).map(mapPaymentMethodRow);
+}
+
+export async function adminUpdatePaymentMethod(input: {
+  code: string;
+  details: string;
+  network?: string;
+  minAmount: number;
+  maxAmount: number;
+  enabled: boolean;
+}): Promise<void> {
+  const { error } = await supabase.rpc("admin_update_payment_method", {
+    p_code: input.code,
+    p_details: input.details,
+    p_network: input.network ?? null,
+    p_min_amount: input.minAmount,
+    p_max_amount: input.maxAmount,
+    p_enabled: input.enabled,
+  });
+  if (error) throw error;
+}
+
+export async function buyListing(listingId: string, buyerNote?: string): Promise<string> {
+  const { data, error } = await supabase.rpc("purchase_listing", {
+    p_listing_id: listingId,
+    p_buyer_note: buyerNote ?? null,
+  });
   if (error) throw error;
   return data as string;
 }
@@ -375,9 +566,16 @@ function mapOrderRow(row: Record<string, unknown>, otherParty: { name?: string }
     otherPartyName: otherParty?.name ?? "Пользователь",
     price: Number(row.price),
     status: row.status as Order["status"],
+    credentials: (row.credentials as string) ?? undefined,
+    buyerNote: (row.buyer_note as string) ?? undefined,
     disputeReason: (row.dispute_reason as string) ?? undefined,
     createdAt: (row.created_at as string)?.slice(0, 10) ?? "",
   };
+}
+
+export async function deliverOrder(orderId: string, credentials: string): Promise<void> {
+  const { error } = await supabase.rpc("deliver_order", { p_order_id: orderId, p_credentials: credentials });
+  if (error) throw error;
 }
 
 export async function getOrdersAsBuyer(buyerId: string): Promise<Order[]> {
@@ -399,3 +597,58 @@ export async function getOrdersAsSeller(sellerId: string): Promise<Order[]> {
   if (error) throw error;
   return (data ?? []).map((row) => mapOrderRow(row, row.buyer as { name?: string } | null));
 }
+
+// ---- KYC (seller identity verification) -----------------------------------
+
+function mapKycRow(row: Record<string, unknown>): KycSubmission {
+  return {
+    id: row.id as string,
+    fullName: row.full_name as string,
+    passportNumber: row.passport_number as string,
+    documentPath: row.document_path as string,
+    status: (row.status as KycSubmission["status"]) ?? "pending",
+    adminNote: (row.admin_note as string) ?? undefined,
+    userName: (row.user_name as string) ?? undefined,
+    createdAt: (row.created_at as string)?.slice(0, 10) ?? "",
+  };
+}
+
+export async function submitKyc(input: {
+  fullName: string;
+  passportNumber: string;
+  documentPath: string;
+}): Promise<void> {
+  const { error } = await supabase.rpc("submit_kyc", {
+    p_full_name: input.fullName,
+    p_passport_number: input.passportNumber,
+    p_document_path: input.documentPath,
+  });
+  if (error) throw error;
+}
+
+export async function getMyKyc(userId: string): Promise<KycSubmission[]> {
+  const { data, error } = await supabase
+    .from("kyc_submissions")
+    .select("*")
+    .eq("profile_id", userId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapKycRow);
+}
+
+export async function adminListKyc(): Promise<KycSubmission[]> {
+  const { data, error } = await supabase.rpc("admin_list_kyc");
+  if (error) throw error;
+  return ((data ?? []) as Record<string, unknown>[]).map(mapKycRow);
+}
+
+export async function adminApproveKyc(id: string): Promise<void> {
+  const { error } = await supabase.rpc("admin_approve_kyc", { p_id: id });
+  if (error) throw error;
+}
+
+export async function adminRejectKyc(id: string, note?: string): Promise<void> {
+  const { error } = await supabase.rpc("admin_reject_kyc", { p_id: id, p_note: note ?? null });
+  if (error) throw error;
+}
+

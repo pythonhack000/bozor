@@ -21,13 +21,16 @@ export function BuyModal({
   const { balance, isLoading: balanceLoading, refresh } = useWallet();
   const [status, setStatus] = useState<"idle" | "paying" | "success" | "error">("idle");
   const [topUpOpen, setTopUpOpen] = useState(false);
+  const [note, setNote] = useState("");
 
   const insufficient = !balanceLoading && balance < listing.price;
+  const isTopup = listing.kind === "topup";
+  const noteMissing = isTopup && !note.trim();
 
   const confirm = async () => {
     setStatus("paying");
     try {
-      await buyListing(listing.id);
+      await buyListing(listing.id, note.trim() || undefined);
       await refresh();
       onPurchased?.();
       setStatus("success");
@@ -101,10 +104,16 @@ export function BuyModal({
                   </div>
                 </div>
 
-                <div className="mt-2.5 flex gap-2 rounded-lg border border-gold/30 bg-gold/5 p-2.5 text-xs leading-relaxed text-muted">
-                  <AlertTriangle size={15} className="mt-0.5 shrink-0 text-gold" />
-                  <p>{t("wallet.demoDisclaimer")}</p>
-                </div>
+                <label className="mt-3 block text-xs font-semibold text-muted uppercase">
+                  {isTopup ? t("buyModal.gameIdLabel") : t("buyModal.noteLabel")}
+                </label>
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  rows={2}
+                  placeholder={isTopup ? t("buyModal.gameIdPlaceholder") : t("buyModal.notePlaceholder")}
+                  className="mt-1.5 w-full resize-none rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground focus:border-brand/50 focus:outline-none"
+                />
 
                 {status === "error" && <p className="mt-3 text-xs text-danger">{t("buyModal.error")}</p>}
 
@@ -117,7 +126,7 @@ export function BuyModal({
 
                 <button
                   onClick={confirm}
-                  disabled={status === "paying"}
+                  disabled={status === "paying" || noteMissing}
                   className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-brand py-3 text-sm font-semibold text-brand-foreground transition hover:bg-brand-dark disabled:opacity-70"
                 >
                   {status === "paying" && <Loader2 size={16} className="animate-spin" />}

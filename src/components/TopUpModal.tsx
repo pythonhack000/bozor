@@ -1,28 +1,91 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Loader2, Wallet, AlertTriangle } from "lucide-react";
+import { X, Loader2, Wallet, Copy, Check, ShieldCheck, CheckCircle2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useWallet } from "@/lib/wallet-context";
+import { getPaymentMethods, requestDeposit, submitDepositProof } from "@/lib/db";
+import type { PaymentMethod } from "@/lib/types";
 
 const QUICK_AMOUNTS = [100, 500, 1000];
 
+type Step = "form" | "pay" | "done";
+
+function CopyButton({ value, label }: { value: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(value);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        } catch {
+          /* clipboard unavailable */
+        }
+      }}
+      className="flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-foreground/80 transition hover:border-brand/40"
+    >
+      {copied ? <Check size={13} className="text-brand" /> : <Copy size={13} />}
+      {label}
+    </button>
+  );
+}
+
 export function TopUpModal({ onClose }: { onClose: () => void }) {
-  const { t } = useI18n();
-  const { topUp } = useWallet();
+  const { t, tl } = useI18n();
+  const { refresh } = useWallet();
+
+  const [methods, setMethods] = useState<PaymentMethod[]>([]);
+  const [loadingMethods, setLoadingMethods] = useState(true);
+  const [methodCode, setMethodCode] = useState("");
   const [amount, setAmount] = useState("500");
+  const [proof, setProof] = useState("");
+  const [step, setStep] = useState<Step>("form");
+  const [reference, setReference] = useState("");
+  const [depositId, setDepositId] = useState("");
   const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
 
-  const confirm = async () => {
-    const value = Number(amount);
-    if (!value || value <= 0) return;
+  useEffect(() => {
+    getPaymentMethods()
+      .then((m) => {
+        setMethods(m);
+        if (m.length > 0) setMethodCode(m[0].code);
+      })
+      .catch((err) => console.error("Failed to load payment methods", err))
+      .finally(() => setLoadingMethods(false));
+  }, []);
+
+  const method = methods.find((m) => m.code === methodCode) ?? null;
+  const value = Number(amount);
+  const outOfRange = method != null && (!value || value < method.minAmount || value > method.maxAmount);
+
+  const proceed = async () => {
+    if (!method || outOfRange) return;
     setStatus("saving");
     try {
-      await topUp(value);
-      onClose();
+      const res = await requestDeposit(method.code, value);
+      setReference(res.referenceCode);
+      setDepositId(res.id);
+      setStep("pay");
+      setStatus("idle");
     } catch (err) {
-      console.error("Failed to top up balance", err);
+      console.error("Failed to create deposit request", err);
+      setStatus("error");
+    }
+  };
+
+  const submit = async () => {
+    setStatus("saving");
+    try {
+      if (proof.trim()) await submitDepositProof(depositId, proof.trim());
+      await refresh();
+      setStep("done");
+      setStatus("idle");
+    } catch (err) {
+      console.error("Failed to submit deposit proof", err);
       setStatus("error");
     }
   };
@@ -34,54 +97,152 @@ export function TopUpModal({ onClose }: { onClose: () => void }) {
         <div className="flex items-center justify-between">
           <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
             <Wallet size={18} className="text-brand" />
-            {t("wallet.topUpTitle")}
+            {t("wallet.depositTitle")}
           </h3>
           <button onClick={onClose} className="text-muted hover:text-foreground">
             <X size={20} />
           </button>
         </div>
 
-        <div className="mt-3 flex gap-2 rounded-lg border border-gold/30 bg-gold/5 p-2.5 text-xs leading-relaxed text-muted">
-          <AlertTriangle size={15} className="mt-0.5 shrink-0 text-gold" />
-          <p>{t("wallet.demoDisclaimer")}</p>
-        </div>
-
-        <label className="mt-4 block text-xs font-semibold text-muted uppercase">{t("wallet.amount")}</label>
-        <div className="relative mt-2">
-          <input
-            type="number"
-            min={1}
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground focus:border-brand/50 focus:outline-none"
-          />
-          <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-muted">
-            {t("common.currency")}
-          </span>
-        </div>
-
-        <div className="mt-2.5 flex gap-2">
-          {QUICK_AMOUNTS.map((v) => (
+        {loadingMethods ? (
+          <div className="flex justify-center py-12">
+            <Loader2 size={22} className="animate-spin text-muted" />
+          </div>
+        ) : methods.length === 0 ? (
+          <p className="py-10 text-center text-sm text-muted">{t("wallet.noMethods")}</p>
+        ) : step === "done" ? (
+          <div className="flex flex-col items-center py-8 text-center">
+            <CheckCircle2 size={44} className="animate-scale-in text-brand" />
+            <p className="mt-4 text-sm font-medium text-foreground">{t("wallet.depositSubmitted")}</p>
+            <p className="mt-2 max-w-xs text-xs leading-relaxed text-muted">{t("wallet.depositSubmittedDesc")}</p>
             <button
-              key={v}
-              onClick={() => setAmount(String(v))}
-              className="rounded-lg border border-border px-3 py-1.5 text-xs text-foreground/80 transition hover:border-brand/40"
+              onClick={onClose}
+              className="mt-6 w-full rounded-lg bg-brand py-2.5 text-sm font-semibold text-brand-foreground"
             >
-              {v} {t("common.currency")}
+              {t("buyModal.close")}
             </button>
-          ))}
-        </div>
+          </div>
+        ) : step === "form" ? (
+          <>
+            <label className="mt-4 block text-xs font-semibold text-muted uppercase">{t("wallet.chooseMethod")}</label>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {methods.map((m) => (
+                <button
+                  key={m.code}
+                  onClick={() => setMethodCode(m.code)}
+                  className={`rounded-lg border px-3 py-2.5 text-sm font-medium transition ${
+                    m.code === methodCode
+                      ? "border-brand bg-brand/10 text-foreground"
+                      : "border-border text-foreground/80 hover:border-brand/40"
+                  }`}
+                >
+                  {tl(m.name)}
+                </button>
+              ))}
+            </div>
 
-        {status === "error" && <p className="mt-3 text-xs text-danger">{t("wallet.topUpError")}</p>}
+            <label className="mt-4 block text-xs font-semibold text-muted uppercase">{t("wallet.amount")}</label>
+            <div className="relative mt-2">
+              <input
+                type="number"
+                min={method?.minAmount ?? 1}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground focus:border-brand/50 focus:outline-none"
+              />
+              <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-muted">
+                {t("common.currency")}
+              </span>
+            </div>
+            {method && (
+              <p className="mt-1.5 text-xs text-muted">
+                {t("wallet.min")}: {method.minAmount} · {t("wallet.max")}: {method.maxAmount} {t("common.currency")}
+              </p>
+            )}
 
-        <button
-          onClick={confirm}
-          disabled={status === "saving"}
-          className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-brand py-3 text-sm font-semibold text-brand-foreground transition hover:bg-brand-dark disabled:opacity-70"
-        >
-          {status === "saving" && <Loader2 size={16} className="animate-spin" />}
-          {t("wallet.topUpConfirm")}
-        </button>
+            <div className="mt-2.5 flex gap-2">
+              {QUICK_AMOUNTS.map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setAmount(String(v))}
+                  className="rounded-lg border border-border px-3 py-1.5 text-xs text-foreground/80 transition hover:border-brand/40"
+                >
+                  {v} {t("common.currency")}
+                </button>
+              ))}
+            </div>
+
+            {status === "error" && <p className="mt-3 text-xs text-danger">{t("wallet.depositError")}</p>}
+
+            <button
+              onClick={proceed}
+              disabled={status === "saving" || outOfRange || !method}
+              className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg bg-brand py-3 text-sm font-semibold text-brand-foreground transition hover:bg-brand-dark disabled:opacity-60"
+            >
+              {status === "saving" && <Loader2 size={16} className="animate-spin" />}
+              {t("wallet.continue")}
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="mt-4 flex gap-2.5 rounded-lg border border-brand/20 bg-brand/5 p-3 text-xs leading-relaxed text-muted">
+              <ShieldCheck size={22} className="shrink-0 text-brand" />
+              <p>{t("wallet.payInstructions")}</p>
+            </div>
+
+            <div className="mt-4 space-y-2.5">
+              <div className="flex items-center justify-between rounded-lg border border-border bg-surface px-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-xs text-muted">{t("wallet.amount")}</p>
+                  <p className="text-sm font-semibold text-foreground">
+                    {value} {t("common.currency")} · {method ? tl(method.name) : ""}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-xs text-muted">{t("wallet.requisites")}</p>
+                  <p className="truncate text-sm font-semibold text-foreground">{method?.details || "—"}</p>
+                  {method?.network && (
+                    <p className="text-xs text-muted">
+                      {t("wallet.network")}: {method.network}
+                    </p>
+                  )}
+                </div>
+                {method?.details ? <CopyButton value={method.details} label={t("wallet.copy")} /> : null}
+              </div>
+
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-gold/30 bg-gold/5 px-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-xs text-muted">{t("wallet.reference")}</p>
+                  <p className="truncate text-sm font-semibold text-gold">{reference}</p>
+                </div>
+                <CopyButton value={reference} label={t("wallet.copy")} />
+              </div>
+            </div>
+
+            <label className="mt-4 block text-xs font-semibold text-muted uppercase">{t("wallet.proofLabel")}</label>
+            <textarea
+              value={proof}
+              onChange={(e) => setProof(e.target.value)}
+              rows={2}
+              placeholder={t("wallet.proofPlaceholder")}
+              className="mt-2 w-full resize-none rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground focus:border-brand/50 focus:outline-none"
+            />
+
+            {status === "error" && <p className="mt-3 text-xs text-danger">{t("wallet.depositError")}</p>}
+
+            <button
+              onClick={submit}
+              disabled={status === "saving"}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-brand py-3 text-sm font-semibold text-brand-foreground transition hover:bg-brand-dark disabled:opacity-70"
+            >
+              {status === "saving" && <Loader2 size={16} className="animate-spin" />}
+              {t("wallet.iPaid")}
+            </button>
+          </>
+        )}
       </div>
     </div>,
     document.body

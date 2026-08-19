@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { Search, MessageCircle, Menu, X, LayoutGrid, ChevronDown, Plus, LogOut, Wallet, Package, Store, ShieldAlert, UserRound } from "lucide-react";
+import { Search, MessageCircle, Menu, X, LayoutGrid, ChevronDown, Plus, LogOut, Wallet, Package, Store, ShieldAlert, UserRound, Gift } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useAuth } from "@/lib/auth-context";
 import { useCategories } from "@/lib/categories-context";
@@ -68,6 +68,14 @@ export function Header() {
             </div>
           )}
         </div>
+
+        <Link
+          href="/donate"
+          className="hidden shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground/90 transition hover:border-brand/40 lg:flex"
+        >
+          <Gift size={16} className="text-brand" />
+          {t("nav.donate")}
+        </Link>
 
         <div className="hidden flex-1 items-center md:flex">
           <div className="relative w-full max-w-md">
@@ -200,6 +208,14 @@ export function Header() {
               className="w-full rounded-lg border border-border bg-surface py-2 pr-3 pl-9 text-sm text-foreground placeholder:text-muted focus:border-brand/50 focus:outline-none"
             />
           </div>
+          <Link
+            href="/donate"
+            onClick={() => setMobileOpen(false)}
+            className="mb-3 flex items-center gap-2 rounded-lg border border-border px-2.5 py-2 text-sm font-medium text-foreground/90 hover:bg-surface"
+          >
+            <Gift size={16} className="text-brand" />
+            {t("nav.donate")}
+          </Link>
           <div className="mb-3 grid grid-cols-2 gap-1">
             {categories.map((c) => (
               <Link
