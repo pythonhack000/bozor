@@ -290,6 +290,18 @@ export async function createListing(input: {
   return mapListingRow(data);
 }
 
+// Self-delete: covered by the "sellers can delete own listings" RLS policy
+// (auth.uid() = seller_id), so a plain table delete is enough here.
+export async function deleteListing(id: string): Promise<void> {
+  const { error } = await supabase.from("listings").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function adminDeleteListing(id: string, reason: string): Promise<void> {
+  const { error } = await supabase.rpc("admin_delete_listing", { p_listing_id: id, p_reason: reason });
+  if (error) throw error;
+}
+
 export async function updateMyProfile(
   userId: string,
   updates: { name?: string; city?: string; online?: boolean }

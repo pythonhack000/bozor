@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { Eye, Heart, Flag, ShieldCheck, Loader2, Star } from "lucide-react";
+import { Eye, Heart, Flag, ShieldCheck, Loader2, Star, Trash2, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -12,6 +12,8 @@ import {
   getReviewsForListing,
   hasReleasedOrder,
   hasReviewedListing,
+  deleteListing,
+  adminDeleteListing,
   type ListingWithRelations,
 } from "@/lib/db";
 import type { Review } from "@/lib/types";
@@ -25,6 +27,91 @@ import { Avatar } from "./Avatar";
 import { BuyModal } from "./BuyModal";
 import { ReviewModal } from "./ReviewModal";
 import { ReportModal } from "./ReportModal";
+
+function DeleteListingControls({
+  listingId,
+  isAdmin,
+  onDeleted,
+}: {
+  listingId: string;
+  isAdmin: boolean;
+  onDeleted: () => void;
+}) {
+  const { t } = useI18n();
+  const [confirming, setConfirming] = useState(false);
+  const [reason, setReason] = useState("");
+  const [status, setStatus] = useState<"idle" | "deleting" | "error">("idle");
+
+  const confirm = async () => {
+    if (isAdmin && !reason.trim()) return;
+    setStatus("deleting");
+    try {
+      if (isAdmin) {
+        await adminDeleteListing(listingId, reason.trim());
+      } else {
+        await deleteListing(listingId);
+      }
+      onDeleted();
+    } catch (err) {
+      console.error("Failed to delete listing", err);
+      setStatus("error");
+    }
+  };
+
+  if (!confirming) {
+    return (
+      <button
+        onClick={() => setConfirming(true)}
+        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-danger/40 py-2.5 text-sm font-medium text-danger transition hover:bg-danger/10"
+      >
+        <Trash2 size={14} />
+        {t(isAdmin ? "listing.adminDeleteButton" : "listing.deleteButton")}
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border border-danger/30 bg-danger/5 p-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-danger">{t("listing.deleteConfirmTitle")}</p>
+        <button onClick={() => setConfirming(false)} className="text-muted hover:text-foreground">
+          <X size={15} />
+        </button>
+      </div>
+      <p className="mt-1 text-xs text-muted">{t("listing.deleteConfirmDesc")}</p>
+
+      {isAdmin && (
+        <textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          rows={2}
+          placeholder={t("listing.adminDeleteReasonPlaceholder")}
+          className="mt-2 w-full resize-none rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-danger/50 focus:outline-none"
+        />
+      )}
+
+      {status === "error" && <p className="mt-2 text-xs text-danger">{t("listing.deleteError")}</p>}
+
+      <div className="mt-2.5 flex gap-2">
+        <button
+          onClick={() => setConfirming(false)}
+          disabled={status === "deleting"}
+          className="flex-1 rounded-lg border border-border py-2 text-xs font-semibold text-foreground/90 transition hover:border-brand/40 disabled:opacity-60"
+        >
+          {t("listing.deleteCancel")}
+        </button>
+        <button
+          onClick={confirm}
+          disabled={status === "deleting" || (isAdmin && !reason.trim())}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-danger py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
+        >
+          {status === "deleting" && <Loader2 size={13} className="animate-spin" />}
+          {t("listing.deleteConfirm")}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function ListingView() {
   const { t, tl } = useI18n();
@@ -313,6 +400,16 @@ export function ListingView() {
               <ShieldCheck size={13} className="text-brand" />
               {t("listing.guaranteeText")}
             </div>
+
+            {user?.isAdmin ? (
+              <DeleteListingControls listingId={listing.id} isAdmin onDeleted={() => router.push("/")} />
+            ) : user?.id === seller.id ? (
+              <DeleteListingControls
+                listingId={listing.id}
+                isAdmin={false}
+                onDeleted={() => router.push(`/seller?id=${user.id}`)}
+              />
+            ) : null}
           </div>
 
           <SellerMiniCard seller={seller} listingId={listing.id} />
