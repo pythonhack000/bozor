@@ -165,7 +165,7 @@ export const dictionaries: Record<Lang, Dict> = {
     "review.leaveReview": "Оставить отзыв",
     "review.alreadyLeft": "Отзыв оставлен",
 
-    "admin.title": "Разрешение споров",
+    "admin.title": "Панель админа",
     "admin.unauthorized": "У вас нет доступа к этой странице",
     "admin.empty": "Открытых споров нет",
     "admin.buyer": "Покупатель",
@@ -519,7 +519,7 @@ export const dictionaries: Record<Lang, Dict> = {
     "review.leaveReview": "Гузоштани шарҳ",
     "review.alreadyLeft": "Шарҳ гузошта шуд",
 
-    "admin.title": "Ҳалли баҳсҳо",
+    "admin.title": "Панели админ",
     "admin.unauthorized": "Шумо ба ин саҳифа дастрасӣ надоред",
     "admin.empty": "Баҳси кушода нест",
     "admin.buyer": "Харидор",
@@ -873,7 +873,7 @@ export const dictionaries: Record<Lang, Dict> = {
     "review.leaveReview": "Leave a review",
     "review.alreadyLeft": "Review submitted",
 
-    "admin.title": "Dispute resolution",
+    "admin.title": "Admin panel",
     "admin.unauthorized": "You don't have access to this page",
     "admin.empty": "No open disputes",
     "admin.buyer": "Buyer",
