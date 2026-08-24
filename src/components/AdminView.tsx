@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, ShieldAlert, Undo2, CheckCircle2, Flag, Ban, X, Check, FileText } from "lucide-react";
+import { Loader2, ShieldAlert, Undo2, CheckCircle2, Flag, Ban, X, Check, FileText, Image as ImageIcon } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useAuth } from "@/lib/auth-context";
+import { supabase } from "@/lib/supabase";
 import {
   getDisputedOrders,
   resolveDispute,
@@ -22,7 +23,7 @@ import {
   adminApproveKyc,
   adminRejectKyc,
 } from "@/lib/db";
-import { getKycDocumentSignedUrl } from "@/lib/storage";
+import { getKycDocumentSignedUrl, getDepositProofSignedUrl } from "@/lib/storage";
 import type {
   DisputedOrder,
   ListingReport,
@@ -97,6 +98,30 @@ export function AdminView() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  // Live-refresh the queues as new deposits/withdrawals/reports/disputes/KYC
+  // submissions come in, instead of only loading once on mount.
+  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!user) return;
+    const scheduleReload = () => {
+      if (reloadTimer.current) clearTimeout(reloadTimer.current);
+      reloadTimer.current = setTimeout(load, 500);
+    };
+    const channel = supabase
+      .channel("admin-queues")
+      .on("postgres_changes", { event: "*", schema: "public", table: "deposit_requests" }, scheduleReload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "withdrawal_requests" }, scheduleReload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "reports" }, scheduleReload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, scheduleReload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "kyc_submissions" }, scheduleReload)
+      .subscribe();
+    return () => {
+      if (reloadTimer.current) clearTimeout(reloadTimer.current);
+      supabase.removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
@@ -276,84 +301,128 @@ export function AdminView() {
         deposits.length === 0 ? (
           <Empty text={t("admin.depositsEmpty")} />
         ) : (
-          <div className="space-y-3">
-            {deposits.map((d) => (
-              <div key={d.id} className="rounded-lg border border-border bg-surface p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-foreground">
-                    +{d.amount} {t("common.currency")}
-                  </p>
-                  <span className="text-xs text-muted">{d.createdAt}</span>
-                </div>
-                <div className="mt-2 grid gap-1 text-xs text-muted sm:grid-cols-2">
-                  <span>
-                    {t("admin.user")}: {d.userName}
-                  </span>
-                  <span>
-                    {t("admin.method")}: {d.methodName ? tl(d.methodName) : d.methodCode}
-                  </span>
-                  <span>
-                    {t("admin.reference")}: <span className="font-mono text-gold">{d.referenceCode}</span>
-                  </span>
-                </div>
-                {d.proof && (
-                  <p className="mt-2 rounded-lg bg-surface-2 px-3 py-2 text-xs break-all text-foreground/80">
-                    {t("admin.proof")}: {d.proof}
-                  </p>
-                )}
-                <ApproveRejectRow
-                  id={d.id}
-                  resolvingId={resolvingId}
-                  rejectingId={rejectingId}
-                  rejectNote={rejectNote}
-                  setRejectNote={setRejectNote}
-                  startReject={() => setRejectingId(d.id)}
-                  cancelReject={() => setRejectingId(null)}
-                  onApprove={() => runAction(d.id, () => adminApproveDeposit(d.id))}
-                  onReject={() => runAction(d.id, () => adminRejectDeposit(d.id, rejectNote))}
-                />
-              </div>
-            ))}
-          </div>
+          <>
+            <div className="space-y-3">
+              {deposits
+                .filter((d) => d.status === "pending")
+                .map((d) => (
+                  <div key={d.id} className="rounded-lg border border-border bg-surface p-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-foreground">
+                        +{d.amount} {d.currency ?? t("common.currency")}
+                      </p>
+                      <span className="text-xs text-muted">{d.createdAt}</span>
+                    </div>
+                    <div className="mt-2 grid gap-1 text-xs text-muted sm:grid-cols-2">
+                      <span>
+                        {t("admin.user")}: {d.userName}
+                      </span>
+                      <span>
+                        {t("admin.method")}: {d.methodName ? tl(d.methodName) : d.methodCode}
+                      </span>
+                      <span>
+                        {t("admin.reference")}: <span className="font-mono text-gold">{d.referenceCode}</span>
+                      </span>
+                    </div>
+                    {d.proof && <ProofButton path={d.proof} />}
+                    {d.currency && d.currency !== "TJS" ? (
+                      <CryptoApproveRow
+                        id={d.id}
+                        resolvingId={resolvingId}
+                        rejectingId={rejectingId}
+                        rejectNote={rejectNote}
+                        setRejectNote={setRejectNote}
+                        startReject={() => setRejectingId(d.id)}
+                        cancelReject={() => setRejectingId(null)}
+                        onApprove={(creditAmount) => runAction(d.id, () => adminApproveDeposit(d.id, creditAmount))}
+                        onReject={() => runAction(d.id, () => adminRejectDeposit(d.id, rejectNote))}
+                      />
+                    ) : (
+                      <ApproveRejectRow
+                        id={d.id}
+                        resolvingId={resolvingId}
+                        rejectingId={rejectingId}
+                        rejectNote={rejectNote}
+                        setRejectNote={setRejectNote}
+                        startReject={() => setRejectingId(d.id)}
+                        cancelReject={() => setRejectingId(null)}
+                        onApprove={() => runAction(d.id, () => adminApproveDeposit(d.id))}
+                        onReject={() => runAction(d.id, () => adminRejectDeposit(d.id, rejectNote))}
+                      />
+                    )}
+                  </div>
+                ))}
+            </div>
+            <RequestHistory
+              title={t("admin.historyTitle")}
+              items={deposits
+                .filter((d) => d.status !== "pending")
+                .map((d) => ({
+                  id: d.id,
+                  status: d.status,
+                  adminNote: d.adminNote,
+                  createdAt: d.createdAt,
+                  label: `+${d.creditedAmount ?? d.amount} ${t("common.currency")}`,
+                  detail: `${d.userName} · ${d.methodName ? tl(d.methodName) : d.methodCode}`,
+                }))}
+            />
+          </>
         )
       ) : tab === "withdrawals" ? (
         withdrawals.length === 0 ? (
           <Empty text={t("admin.withdrawalsEmpty")} />
         ) : (
-          <div className="space-y-3">
-            {withdrawals.map((w) => (
-              <div key={w.id} className="rounded-lg border border-border bg-surface p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-foreground">
-                    −{w.amount} {t("common.currency")}
-                  </p>
-                  <span className="text-xs text-muted">{w.createdAt}</span>
-                </div>
-                <div className="mt-2 grid gap-1 text-xs text-muted sm:grid-cols-2">
-                  <span>
-                    {t("admin.user")}: {w.userName}
-                  </span>
-                  <span>
-                    {t("admin.method")}: {w.methodName ? tl(w.methodName) : w.methodCode}
-                  </span>
-                </div>
-                <p className="mt-2 rounded-lg bg-surface-2 px-3 py-2 text-xs break-all text-foreground/80">
-                  {t("admin.destination")}: {w.destination}
-                </p>
-                <ApproveRejectRow
-                  id={w.id}
-                  resolvingId={resolvingId}
-                  rejectingId={rejectingId}
-                  rejectNote={rejectNote}
-                  setRejectNote={setRejectNote}
-                  startReject={() => setRejectingId(w.id)}
-                  cancelReject={() => setRejectingId(null)}
-                  onApprove={() => runAction(w.id, () => adminApproveWithdrawal(w.id))}
-                  onReject={() => runAction(w.id, () => adminRejectWithdrawal(w.id, rejectNote))}
-                />
-              </div>
-            ))}
-          </div>
+          <>
+            <div className="space-y-3">
+              {withdrawals
+                .filter((w) => w.status === "pending")
+                .map((w) => (
+                  <div key={w.id} className="rounded-lg border border-border bg-surface p-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-foreground">
+                        −{w.amount} {t("common.currency")}
+                      </p>
+                      <span className="text-xs text-muted">{w.createdAt}</span>
+                    </div>
+                    <div className="mt-2 grid gap-1 text-xs text-muted sm:grid-cols-2">
+                      <span>
+                        {t("admin.user")}: {w.userName}
+                      </span>
+                      <span>
+                        {t("admin.method")}: {w.methodName ? tl(w.methodName) : w.methodCode}
+                      </span>
+                    </div>
+                    <p className="mt-2 rounded-lg bg-surface-2 px-3 py-2 text-xs break-all text-foreground/80">
+                      {t("admin.destination")}: {w.destination}
+                    </p>
+                    <ApproveRejectRow
+                      id={w.id}
+                      resolvingId={resolvingId}
+                      rejectingId={rejectingId}
+                      rejectNote={rejectNote}
+                      setRejectNote={setRejectNote}
+                      startReject={() => setRejectingId(w.id)}
+                      cancelReject={() => setRejectingId(null)}
+                      onApprove={() => runAction(w.id, () => adminApproveWithdrawal(w.id))}
+                      onReject={() => runAction(w.id, () => adminRejectWithdrawal(w.id, rejectNote))}
+                    />
+                  </div>
+                ))}
+            </div>
+            <RequestHistory
+              title={t("admin.historyTitle")}
+              items={withdrawals
+                .filter((w) => w.status !== "pending")
+                .map((w) => ({
+                  id: w.id,
+                  status: w.status,
+                  adminNote: w.adminNote,
+                  createdAt: w.createdAt,
+                  label: `−${w.amount} ${t("common.currency")}`,
+                  detail: `${w.userName} · ${w.methodName ? tl(w.methodName) : w.methodCode}`,
+                }))}
+            />
+          </>
         )
       ) : tab === "kyc" ? (
         kyc.length === 0 ? (
@@ -415,6 +484,167 @@ export function AdminView() {
 function Empty({ text }: { text: string }) {
   return (
     <div className="rounded-lg border border-dashed border-border py-16 text-center text-sm text-muted">{text}</div>
+  );
+}
+
+function ProofButton({ path }: { path: string }) {
+  const { t } = useI18n();
+  return (
+    <button
+      onClick={async () => {
+        try {
+          const url = await getDepositProofSignedUrl(path);
+          window.open(url, "_blank", "noopener,noreferrer");
+        } catch (err) {
+          console.error("Failed to open deposit proof", err);
+        }
+      }}
+      className="mt-2 flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-foreground/80 transition hover:border-brand/40"
+    >
+      <ImageIcon size={13} />
+      {t("admin.viewProof")}
+    </button>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const { t } = useI18n();
+  const styles =
+    status === "approved"
+      ? "border-brand/30 bg-brand/10 text-brand"
+      : status === "rejected"
+        ? "border-danger/30 bg-danger/10 text-danger"
+        : "border-border bg-surface-2 text-muted";
+  const label =
+    status === "approved" ? t("admin.statusApproved") : status === "rejected" ? t("admin.statusRejected") : status;
+  return <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${styles}`}>{label}</span>;
+}
+
+function RequestHistory({
+  title,
+  items,
+}: {
+  title: string;
+  items: {
+    id: string;
+    status: string;
+    adminNote?: string;
+    createdAt: string;
+    label: string;
+    detail: string;
+  }[];
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div className="mt-6">
+      <h3 className="mb-2 text-xs font-semibold tracking-wide text-muted uppercase">{title}</h3>
+      <div className="space-y-2">
+        {items.map((item) => (
+          <div key={item.id} className="rounded-lg border border-border bg-surface/60 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium text-foreground">{item.label}</p>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted">{item.createdAt}</span>
+                <StatusBadge status={item.status} />
+              </div>
+            </div>
+            <p className="mt-1 text-xs text-muted">{item.detail}</p>
+            {item.adminNote && <p className="mt-1 text-xs text-foreground/70">{item.adminNote}</p>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CryptoApproveRow({
+  id,
+  resolvingId,
+  rejectingId,
+  rejectNote,
+  setRejectNote,
+  startReject,
+  cancelReject,
+  onApprove,
+  onReject,
+}: {
+  id: string;
+  resolvingId: string | null;
+  rejectingId: string | null;
+  rejectNote: string;
+  setRejectNote: (v: string) => void;
+  startReject: () => void;
+  cancelReject: () => void;
+  onApprove: (creditAmount: number) => void;
+  onReject: () => void;
+}) {
+  const { t } = useI18n();
+  const busy = resolvingId === id;
+  const [creditAmount, setCreditAmount] = useState("");
+  const amount = Number(creditAmount);
+
+  if (rejectingId === id) {
+    return (
+      <div className="mt-3 space-y-2">
+        <input
+          value={rejectNote}
+          onChange={(e) => setRejectNote(e.target.value)}
+          placeholder={t("admin.rejectNotePlaceholder")}
+          className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground focus:border-brand/50 focus:outline-none"
+        />
+        <div className="flex gap-2">
+          <button
+            onClick={cancelReject}
+            disabled={busy}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3.5 py-2 text-xs font-semibold text-foreground/90 transition hover:border-brand/40 disabled:opacity-60"
+          >
+            <X size={13} />
+            {t("admin.cancel")}
+          </button>
+          <button
+            onClick={onReject}
+            disabled={busy}
+            className="flex items-center gap-1.5 rounded-lg bg-danger px-3.5 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
+          >
+            {busy ? <Loader2 size={13} className="animate-spin" /> : <Ban size={13} />}
+            {t("admin.confirmReject")}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-2">
+      <div>
+        <label className="block text-xs font-medium text-muted">{t("admin.creditAmountLabel")}</label>
+        <input
+          type="number"
+          value={creditAmount}
+          onChange={(e) => setCreditAmount(e.target.value)}
+          placeholder={t("common.currency")}
+          className="mt-1 w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground focus:border-brand/50 focus:outline-none"
+        />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => onApprove(amount)}
+          disabled={busy || !amount || amount <= 0}
+          className="flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-xs font-semibold text-brand-foreground transition hover:bg-brand-dark disabled:opacity-60"
+        >
+          {busy ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+          {t("admin.approve")}
+        </button>
+        <button
+          onClick={startReject}
+          disabled={busy}
+          className="flex items-center gap-1.5 rounded-lg border border-border px-3.5 py-2 text-xs font-semibold text-foreground/90 transition hover:border-danger/40 disabled:opacity-60"
+        >
+          <X size={13} />
+          {t("admin.reject")}
+        </button>
+      </div>
+    </div>
   );
 }
 

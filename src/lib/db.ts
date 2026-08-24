@@ -335,6 +335,7 @@ function mapPaymentMethodRow(row: Record<string, unknown>): PaymentMethod {
     details: (row.details as string) ?? "",
     network: (row.network as string) ?? undefined,
     instructions: (row.instructions as LocalizedText) ?? undefined,
+    currency: (row.currency as string) ?? "TJS",
     minAmount: Number(row.min_amount),
     maxAmount: Number(row.max_amount),
     enabled: Boolean(row.enabled),
@@ -392,6 +393,8 @@ function mapDepositRow(row: Record<string, unknown>): DepositRequest {
     methodCode: row.method_code as string,
     methodName: (row.method_name as LocalizedText) ?? undefined,
     amount: Number(row.amount),
+    creditedAmount: row.credited_amount != null ? Number(row.credited_amount) : undefined,
+    currency: (row.currency as string) ?? undefined,
     referenceCode: (row.reference_code as string) ?? "",
     proof: (row.proof as string) ?? undefined,
     status: (row.status as DepositRequest["status"]) ?? "pending",
@@ -443,8 +446,11 @@ export async function adminListDeposits(): Promise<DepositRequest[]> {
   return ((data ?? []) as Record<string, unknown>[]).map(mapDepositRow);
 }
 
-export async function adminApproveDeposit(id: string): Promise<void> {
-  const { error } = await supabase.rpc("admin_approve_deposit", { p_id: id });
+export async function adminApproveDeposit(id: string, creditAmount?: number): Promise<void> {
+  const { error } = await supabase.rpc("admin_approve_deposit", {
+    p_id: id,
+    p_credit_amount: creditAmount ?? null,
+  });
   if (error) throw error;
 }
 

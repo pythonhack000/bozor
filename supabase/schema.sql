@@ -915,8 +915,12 @@ returns table (
   method_code text,
   method_name jsonb,
   amount numeric,
+  credited_amount numeric,
+  currency text,
   reference_code text,
   proof text,
+  status text,
+  admin_note text,
   created_at timestamptz
 )
 language plpgsql
@@ -928,17 +932,23 @@ begin
     raise exception 'not authorized';
   end if;
 
+  -- Returns every request (not just pending) so the admin panel can show
+  -- history, not just the live queue; pending sorts first, then newest.
   return query
-    select d.id, d.profile_id, pr.name, d.method_code, pm.name, d.amount, d.reference_code, d.proof, d.created_at
+    select d.id, d.profile_id, pr.name, d.method_code, pm.name, d.amount, d.credited_amount,
+           pm.currency, d.reference_code, d.proof, d.status, d.admin_note, d.created_at
     from public.deposit_requests d
     join public.profiles pr on pr.id = d.profile_id
     join public.payment_methods pm on pm.code = d.method_code
-    where d.status = 'pending'
-    order by d.created_at asc;
+    order by (d.status = 'pending') desc, d.created_at desc;
 end;
 $$;
 
-create or replace function public.admin_approve_deposit(p_id uuid)
+-- p_credit_amount lets the admin override how much smn to credit — needed
+-- for crypto methods, where the buyer's `amount` is in USDT/USDC (no live FX
+-- feed exists, so the admin converts manually at approval time). Omitted, it
+-- credits exactly the requested amount, same as before this parameter existed.
+create or replace function public.admin_approve_deposit(p_id uuid, p_credit_amount numeric default null)
 returns void
 language plpgsql
 security definer
@@ -946,6 +956,7 @@ set search_path = public
 as $$
 declare
   v_req public.deposit_requests%rowtype;
+  v_credit numeric;
 begin
   if not exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin) then
     raise exception 'not authorized';
@@ -959,12 +970,17 @@ begin
     raise exception 'request already processed';
   end if;
 
-  update public.profiles set balance = balance + v_req.amount where id = v_req.profile_id;
+  v_credit := coalesce(p_credit_amount, v_req.amount);
+  if v_credit <= 0 then
+    raise exception 'invalid credit amount';
+  end if;
+
+  update public.profiles set balance = balance + v_credit where id = v_req.profile_id;
   insert into public.wallet_transactions (profile_id, amount, type)
-  values (v_req.profile_id, v_req.amount, 'topup');
+  values (v_req.profile_id, v_credit, 'topup');
 
   update public.deposit_requests
-    set status = 'approved', decided_at = now(), decided_by = auth.uid()
+    set status = 'approved', credited_amount = v_credit, decided_at = now(), decided_by = auth.uid()
     where id = p_id;
 end;
 $$;

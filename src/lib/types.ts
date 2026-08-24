@@ -101,6 +101,7 @@ export interface PaymentMethod {
   details: string;
   network?: string;
   instructions?: LocalizedText;
+  currency: string;
   minAmount: number;
   maxAmount: number;
   enabled: boolean;
@@ -114,6 +115,8 @@ export interface DepositRequest {
   methodCode: string;
   methodName?: LocalizedText;
   amount: number;
+  creditedAmount?: number;
+  currency?: string;
   referenceCode: string;
   proof?: string;
   status: RequestStatus;

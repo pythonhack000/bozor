@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Loader2, Wallet, Copy, Check, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { X, Loader2, Wallet, Copy, Check, ShieldCheck, CheckCircle2, Paperclip } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
+import { useAuth } from "@/lib/auth-context";
 import { useWallet } from "@/lib/wallet-context";
 import { getPaymentMethods, requestDeposit, submitDepositProof } from "@/lib/db";
+import { uploadDepositProof } from "@/lib/storage";
 import type { PaymentMethod } from "@/lib/types";
 
-const QUICK_AMOUNTS = [100, 500, 1000];
+const QUICK_AMOUNTS_TJS = [100, 500, 1000];
+const QUICK_AMOUNTS_CRYPTO = [10, 50, 100];
 
 type Step = "form" | "pay" | "done";
 
@@ -36,13 +39,15 @@ function CopyButton({ value, label }: { value: string; label: string }) {
 
 export function TopUpModal({ onClose }: { onClose: () => void }) {
   const { t, tl } = useI18n();
+  const { user } = useAuth();
   const { refresh } = useWallet();
 
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [loadingMethods, setLoadingMethods] = useState(true);
   const [methodCode, setMethodCode] = useState("");
   const [amount, setAmount] = useState("500");
-  const [proof, setProof] = useState("");
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<Step>("form");
   const [reference, setReference] = useState("");
   const [depositId, setDepositId] = useState("");
@@ -59,6 +64,8 @@ export function TopUpModal({ onClose }: { onClose: () => void }) {
   }, []);
 
   const method = methods.find((m) => m.code === methodCode) ?? null;
+  const isCrypto = method != null && method.currency !== "TJS";
+  const quickAmounts = isCrypto ? QUICK_AMOUNTS_CRYPTO : QUICK_AMOUNTS_TJS;
   const value = Number(amount);
   const outOfRange = method != null && (!value || value < method.minAmount || value > method.maxAmount);
 
@@ -78,9 +85,13 @@ export function TopUpModal({ onClose }: { onClose: () => void }) {
   };
 
   const submit = async () => {
+    if (!user) return;
     setStatus("saving");
     try {
-      if (proof.trim()) await submitDepositProof(depositId, proof.trim());
+      if (proofFile) {
+        const path = await uploadDepositProof(proofFile, user.id);
+        await submitDepositProof(depositId, path);
+      }
       await refresh();
       setStep("done");
       setStatus("idle");
@@ -151,26 +162,28 @@ export function TopUpModal({ onClose }: { onClose: () => void }) {
                 className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground focus:border-brand/50 focus:outline-none"
               />
               <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-muted">
-                {t("common.currency")}
+                {method?.currency ?? t("common.currency")}
               </span>
             </div>
             {method && (
               <p className="mt-1.5 text-xs text-muted">
-                {t("wallet.min")}: {method.minAmount} · {t("wallet.max")}: {method.maxAmount} {t("common.currency")}
+                {t("wallet.min")}: {method.minAmount} · {t("wallet.max")}: {method.maxAmount} {method.currency}
               </p>
             )}
 
             <div className="mt-2.5 flex gap-2">
-              {QUICK_AMOUNTS.map((v) => (
+              {quickAmounts.map((v) => (
                 <button
                   key={v}
                   onClick={() => setAmount(String(v))}
                   className="rounded-lg border border-border px-3 py-1.5 text-xs text-foreground/80 transition hover:border-brand/40"
                 >
-                  {v} {t("common.currency")}
+                  {v} {method?.currency ?? t("common.currency")}
                 </button>
               ))}
             </div>
+
+            {isCrypto && <p className="mt-2.5 text-xs text-muted">{t("wallet.cryptoAmountNote")}</p>}
 
             {status === "error" && <p className="mt-3 text-xs text-danger">{t("wallet.depositError")}</p>}
 
@@ -195,7 +208,7 @@ export function TopUpModal({ onClose }: { onClose: () => void }) {
                 <div className="min-w-0">
                   <p className="text-xs text-muted">{t("wallet.amount")}</p>
                   <p className="text-sm font-semibold text-foreground">
-                    {value} {t("common.currency")} · {method ? tl(method.name) : ""}
+                    {value} {method?.currency ?? t("common.currency")} · {method ? tl(method.name) : ""}
                   </p>
                 </div>
               </div>
@@ -223,13 +236,21 @@ export function TopUpModal({ onClose }: { onClose: () => void }) {
             </div>
 
             <label className="mt-4 block text-xs font-semibold text-muted uppercase">{t("wallet.proofLabel")}</label>
-            <textarea
-              value={proof}
-              onChange={(e) => setProof(e.target.value)}
-              rows={2}
-              placeholder={t("wallet.proofPlaceholder")}
-              className="mt-2 w-full resize-none rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground focus:border-brand/50 focus:outline-none"
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
             />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="mt-2 flex w-full items-center gap-2 rounded-lg border border-dashed border-border bg-surface px-3 py-2.5 text-left text-sm text-foreground/80 transition hover:border-brand/40"
+            >
+              <Paperclip size={15} className="shrink-0 text-muted" />
+              <span className="truncate">{proofFile ? proofFile.name : t("wallet.proofPlaceholder")}</span>
+            </button>
 
             {status === "error" && <p className="mt-3 text-xs text-danger">{t("wallet.depositError")}</p>}
 
