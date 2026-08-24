@@ -180,6 +180,11 @@ export function TopUpModal({ onClose }: { onClose: () => void }) {
                 {t("wallet.min")}: {method.minAmount} · {t("wallet.max")}: {method.maxAmount} {method.currency}
               </p>
             )}
+            {isCrypto && method?.rate && value > 0 && (
+              <p className="mt-1.5 text-sm font-semibold text-brand">
+                ≈ {Math.round(value * method.rate * 100) / 100} {t("common.currency")}
+              </p>
+            )}
 
             <div className="mt-2.5 flex gap-2">
               {quickAmounts.map((v) => (
@@ -220,6 +225,11 @@ export function TopUpModal({ onClose }: { onClose: () => void }) {
                   <p className="text-sm font-semibold text-foreground">
                     {value} {method?.currency ?? t("common.currency")} · {method ? tl(method.name) : ""}
                   </p>
+                  {isCrypto && method?.rate && (
+                    <p className="text-xs text-brand">
+                      ≈ {Math.round(value * method.rate * 100) / 100} {t("common.currency")}
+                    </p>
+                  )}
                 </div>
               </div>
 
