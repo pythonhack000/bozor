@@ -391,10 +391,17 @@ revoke execute on function public.confirm_order_receipt(uuid) from public;
 revoke execute on function public.mark_conversation_read(uuid) from public;
 
 grant execute on function public.get_my_balance() to authenticated;
-grant execute on function public.topup_balance(numeric) to authenticated;
 grant execute on function public.purchase_listing(uuid, text) to authenticated;
 grant execute on function public.confirm_order_receipt(uuid) to authenticated;
 grant execute on function public.mark_conversation_read(uuid) to authenticated;
+
+-- topup_balance() is a leftover pre-launch "demo balance" RPC: it credits
+-- the caller's own balance with no payment verification. The real deposit
+-- flow (request_deposit -> admin_approve_deposit) replaced it in the UI, so
+-- it must stay revoked from clients (see migration
+-- 20260824132231_revoke_dead_demo_topup.sql) even though the function
+-- definition is left in place.
+revoke execute on function public.topup_balance(numeric) from authenticated;
 
 -- Dispute / arbitration
 -- (is_admin is already excluded from the UPDATE grant list above, so no
