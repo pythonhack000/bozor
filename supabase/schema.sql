@@ -729,13 +729,15 @@ create table if not exists public.payment_methods (
   sort_order int not null default 0
 );
 
--- Seed the four methods once; kept disabled until the operator adds requisites.
+-- Seed the six methods once; kept disabled until the operator adds requisites.
 insert into public.payment_methods (code, name, network, min_amount, max_amount, enabled, sort_order)
 values
-  ('alif',  '{"ru":"Alif","tj":"Alif","en":"Alif"}'::jsonb,                                  null,    10, 50000,  false, 1),
-  ('dc',    '{"ru":"DC кошелёк","tj":"Ҳамёни DC","en":"DC wallet"}'::jsonb,                  null,    10, 50000,  false, 2),
-  ('card',  '{"ru":"Банковская карта","tj":"Корти бонкӣ","en":"Bank card"}'::jsonb,          null,    10, 50000,  false, 3),
-  ('crypto','{"ru":"Binance / USDT","tj":"Binance / USDT","en":"Binance / USDT"}'::jsonb,    'TRC20', 10, 100000, false, 4)
+  ('alif',         '{"ru":"Alif","tj":"Alif","en":"Alif"}'::jsonb,                                              null,    10, 50000,  false, 1),
+  ('dc',           '{"ru":"DC кошелёк","tj":"Ҳамёни DC","en":"DC wallet"}'::jsonb,                              null,    10, 50000,  false, 2),
+  ('card',         '{"ru":"Банковская карта","tj":"Корти бонкӣ","en":"Bank card"}'::jsonb,                      null,    10, 50000,  false, 3),
+  ('crypto',       '{"ru":"Binance / USDT","tj":"Binance / USDT","en":"Binance / USDT"}'::jsonb,                'TRC20', 10, 100000, false, 4),
+  ('crypto_bep20', '{"ru":"USDT / USDC (BEP20)","tj":"USDT / USDC (BEP20)","en":"USDT / USDC (BEP20)"}'::jsonb, 'BEP20', 10, 100000, false, 5),
+  ('crypto_sol',   '{"ru":"USDC (Solana)","tj":"USDC (Solana)","en":"USDC (Solana)"}'::jsonb,                   'SOL',   10, 100000, false, 6)
 on conflict (code) do nothing;
 
 create table if not exists public.deposit_requests (
