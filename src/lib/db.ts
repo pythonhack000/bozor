@@ -391,6 +391,7 @@ export async function requestWithdrawal(
 function mapDepositRow(row: Record<string, unknown>): DepositRequest {
   return {
     id: row.id as string,
+    profileId: row.profile_id as string,
     methodCode: row.method_code as string,
     methodName: (row.method_name as LocalizedText) ?? undefined,
     amount: Number(row.amount),
@@ -409,6 +410,7 @@ function mapDepositRow(row: Record<string, unknown>): DepositRequest {
 function mapWithdrawalRow(row: Record<string, unknown>): WithdrawalRequest {
   return {
     id: row.id as string,
+    profileId: row.profile_id as string,
     methodCode: row.method_code as string,
     methodName: (row.method_name as LocalizedText) ?? undefined,
     amount: Number(row.amount),
@@ -625,6 +627,7 @@ export async function getOrdersAsSeller(sellerId: string): Promise<Order[]> {
 function mapKycRow(row: Record<string, unknown>): KycSubmission {
   return {
     id: row.id as string,
+    profileId: row.profile_id as string,
     fullName: row.full_name as string,
     passportNumber: row.passport_number as string,
     documentPath: row.document_path as string,

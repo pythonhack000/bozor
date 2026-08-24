@@ -116,9 +116,9 @@ export function OrdersView() {
     if (!authLoading && !user) router.replace("/auth?next=/orders");
   }, [user, authLoading, router]);
 
-  const load = async () => {
+  const load = async (opts?: { silent?: boolean }) => {
     if (!user) return;
-    setIsLoading(true);
+    if (!opts?.silent) setIsLoading(true);
     const [p, s, reviewed] = await Promise.all([
       getOrdersAsBuyer(user.id),
       getOrdersAsSeller(user.id),
@@ -129,6 +129,7 @@ export function OrdersView() {
     setReviewedListingIds(reviewed);
     setIsLoading(false);
   };
+  const loadSilently = () => load({ silent: true });
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -143,7 +144,7 @@ export function OrdersView() {
     setError(null);
     try {
       await confirmOrderReceipt(orderId);
-      await load();
+      await load({ silent: true });
       await refreshBalance();
     } catch (err) {
       console.error("Failed to confirm receipt", err);
@@ -311,7 +312,7 @@ export function OrdersView() {
         <DisputeModal
           orderId={disputingId}
           onClose={() => setDisputingId(null)}
-          onSuccess={load}
+          onSuccess={loadSilently}
         />
       )}
 
@@ -319,7 +320,7 @@ export function OrdersView() {
         <ReviewModal
           listingId={reviewingListingId}
           onClose={() => setReviewingListingId(null)}
-          onSuccess={load}
+          onSuccess={loadSilently}
         />
       )}
     </div>

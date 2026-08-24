@@ -109,6 +109,14 @@ export async function sendMessage(conversationId: string, senderId: string, text
   return { id: data.id, senderId: data.sender_id, text: data.text, createdAt: data.created_at };
 }
 
+// Sends a message from the admin to a user outside any listing context (e.g.
+// explaining why a deposit/withdrawal/KYC request was rejected). Reuses the
+// listing_id=null conversation slot — one ongoing admin thread per user.
+export async function adminNotifyUser(adminId: string, userId: string, text: string): Promise<void> {
+  const conversationId = await getOrCreateConversation(userId, adminId, null);
+  await sendMessage(conversationId, adminId, text);
+}
+
 export function subscribeToMessages(conversationId: string, onInsert: (message: ChatMessage) => void) {
   const channel = supabase
     .channel(`messages:${conversationId}`)

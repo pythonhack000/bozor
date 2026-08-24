@@ -6,6 +6,7 @@ import { Loader2, ShieldAlert, Undo2, CheckCircle2, Flag, Ban, X, Check, FileTex
 import { useI18n } from "@/lib/i18n-context";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
+import { adminNotifyUser } from "@/lib/chat";
 import {
   getDisputedOrders,
   resolveDispute,
@@ -68,9 +69,9 @@ export function AdminView() {
     if (!authLoading && !user) router.replace("/auth?next=/admin");
   }, [user, authLoading, router]);
 
-  const load = async () => {
+  const load = async (opts?: { silent?: boolean }) => {
     if (!user) return;
-    setIsLoading(true);
+    if (!opts?.silent) setIsLoading(true);
     try {
       const [disputeRows, reportRows, depositRows, withdrawalRows, kycRows, methodRows] = await Promise.all([
         getDisputedOrders(),
@@ -108,7 +109,7 @@ export function AdminView() {
     if (!user) return;
     const scheduleReload = () => {
       if (reloadTimer.current) clearTimeout(reloadTimer.current);
-      reloadTimer.current = setTimeout(load, 500);
+      reloadTimer.current = setTimeout(() => load({ silent: true }), 500);
     };
     const channel = supabase
       .channel("admin-queues")
@@ -131,7 +132,7 @@ export function AdminView() {
     setResolvingId(orderId);
     try {
       await resolveDispute(orderId, resolution);
-      await load();
+      await load({ silent: true });
     } catch (err) {
       console.error("Failed to resolve dispute", err);
     } finally {
@@ -143,7 +144,7 @@ export function AdminView() {
     setResolvingId(reportId);
     try {
       await resolveReport(reportId, action);
-      await load();
+      await load({ silent: true });
     } catch (err) {
       console.error("Failed to resolve report", err);
     } finally {
@@ -157,11 +158,22 @@ export function AdminView() {
       await fn();
       setRejectingId(null);
       setRejectNote("");
-      await load();
+      await load({ silent: true });
     } catch (err) {
       console.error("Payment action failed", err);
     } finally {
       setResolvingId(null);
+    }
+  };
+
+  // Lets the affected user actually see why their request was rejected,
+  // instead of the reason sitting silently in admin-only history.
+  const notifyRejection = async (profileId: string, note: string) => {
+    if (!user || !note.trim()) return;
+    try {
+      await adminNotifyUser(user.id, profileId, `${t("admin.rejectMessagePrefix")}: ${note.trim()}`);
+    } catch (err) {
+      console.error("Failed to notify user of rejection", err);
     }
   };
 
@@ -175,7 +187,7 @@ export function AdminView() {
     rate?: number;
   }) => {
     await adminUpdatePaymentMethod(input);
-    await load();
+    await load({ silent: true });
   };
 
   return (
@@ -309,9 +321,17 @@ export function AdminView() {
                 .map((d) => (
                   <div key={d.id} className="rounded-lg border border-border bg-surface p-4">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-foreground">
-                        +{d.amount} {d.currency ?? t("common.currency")}
-                      </p>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">
+                          +{d.amount} {d.currency ?? t("common.currency")}
+                        </p>
+                        {d.currency && d.currency !== "TJS" && d.rate && (
+                          <p className="text-xs text-muted">
+                            ≈ {Math.round(d.amount * d.rate * 100) / 100} {t("common.currency")} · {t("admin.reqRate")}{" "}
+                            {d.rate}
+                          </p>
+                        )}
+                      </div>
                       <span className="text-xs text-muted">{d.createdAt}</span>
                     </div>
                     <div className="mt-2 grid gap-1 text-xs text-muted sm:grid-cols-2">
@@ -337,7 +357,12 @@ export function AdminView() {
                         startReject={() => setRejectingId(d.id)}
                         cancelReject={() => setRejectingId(null)}
                         onApprove={(creditAmount) => runAction(d.id, () => adminApproveDeposit(d.id, creditAmount))}
-                        onReject={() => runAction(d.id, () => adminRejectDeposit(d.id, rejectNote))}
+                        onReject={() =>
+                          runAction(d.id, async () => {
+                            await adminRejectDeposit(d.id, rejectNote);
+                            await notifyRejection(d.profileId, rejectNote);
+                          })
+                        }
                       />
                     ) : (
                       <ApproveRejectRow
@@ -349,7 +374,12 @@ export function AdminView() {
                         startReject={() => setRejectingId(d.id)}
                         cancelReject={() => setRejectingId(null)}
                         onApprove={() => runAction(d.id, () => adminApproveDeposit(d.id))}
-                        onReject={() => runAction(d.id, () => adminRejectDeposit(d.id, rejectNote))}
+                        onReject={() =>
+                          runAction(d.id, async () => {
+                            await adminRejectDeposit(d.id, rejectNote);
+                            await notifyRejection(d.profileId, rejectNote);
+                          })
+                        }
                       />
                     )}
                   </div>
@@ -364,7 +394,10 @@ export function AdminView() {
                   status: d.status,
                   adminNote: d.adminNote,
                   createdAt: d.createdAt,
-                  label: `+${d.creditedAmount ?? d.amount} ${t("common.currency")}`,
+                  label:
+                    d.creditedAmount != null
+                      ? `+${d.creditedAmount} ${t("common.currency")}`
+                      : `+${d.amount} ${d.currency ?? t("common.currency")}`,
                   detail: `${d.userName} · ${d.methodName ? tl(d.methodName) : d.methodCode}`,
                 }))}
             />
@@ -406,7 +439,12 @@ export function AdminView() {
                       startReject={() => setRejectingId(w.id)}
                       cancelReject={() => setRejectingId(null)}
                       onApprove={() => runAction(w.id, () => adminApproveWithdrawal(w.id))}
-                      onReject={() => runAction(w.id, () => adminRejectWithdrawal(w.id, rejectNote))}
+                      onReject={() =>
+                        runAction(w.id, async () => {
+                          await adminRejectWithdrawal(w.id, rejectNote);
+                          await notifyRejection(w.profileId, rejectNote);
+                        })
+                      }
                     />
                   </div>
                 ))}
@@ -466,7 +504,12 @@ export function AdminView() {
                   startReject={() => setRejectingId(k.id)}
                   cancelReject={() => setRejectingId(null)}
                   onApprove={() => runAction(k.id, () => adminApproveKyc(k.id))}
-                  onReject={() => runAction(k.id, () => adminRejectKyc(k.id, rejectNote))}
+                  onReject={() =>
+                    runAction(k.id, async () => {
+                      await adminRejectKyc(k.id, rejectNote);
+                      await notifyRejection(k.profileId, rejectNote);
+                    })
+                  }
                 />
               </div>
             ))}
@@ -609,7 +652,7 @@ function CryptoApproveRow({
           </button>
           <button
             onClick={onReject}
-            disabled={busy}
+            disabled={busy || !rejectNote.trim()}
             className="flex items-center gap-1.5 rounded-lg bg-danger px-3.5 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
           >
             {busy ? <Loader2 size={13} className="animate-spin" /> : <Ban size={13} />}
@@ -699,7 +742,7 @@ function ApproveRejectRow({
           </button>
           <button
             onClick={onReject}
-            disabled={busy}
+            disabled={busy || !rejectNote.trim()}
             className="flex items-center gap-1.5 rounded-lg bg-danger px-3.5 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
           >
             {busy ? <Loader2 size={13} className="animate-spin" /> : <Ban size={13} />}

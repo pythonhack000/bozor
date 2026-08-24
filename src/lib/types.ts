@@ -113,6 +113,7 @@ export type RequestStatus = "pending" | "approved" | "rejected";
 
 export interface DepositRequest {
   id: string;
+  profileId: string;
   methodCode: string;
   methodName?: LocalizedText;
   amount: number;
@@ -129,6 +130,7 @@ export interface DepositRequest {
 
 export interface WithdrawalRequest {
   id: string;
+  profileId: string;
   methodCode: string;
   methodName?: LocalizedText;
   amount: number;
@@ -143,6 +145,7 @@ export type KycStatus = "pending" | "approved" | "rejected";
 
 export interface KycSubmission {
   id: string;
+  profileId: string;
   fullName: string;
   passportNumber: string;
   documentPath: string;

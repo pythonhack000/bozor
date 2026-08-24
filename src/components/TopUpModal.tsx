@@ -13,6 +13,10 @@ import type { PaymentMethod } from "@/lib/types";
 const QUICK_AMOUNTS_TJS = [100, 500, 1000];
 const QUICK_AMOUNTS_CRYPTO = [10, 50, 100];
 
+function defaultAmountFor(m: PaymentMethod): string {
+  return m.currency !== "TJS" ? "50" : "500";
+}
+
 type Step = "form" | "pay" | "done";
 
 function CopyButton({ value, label }: { value: string; label: string }) {
@@ -57,7 +61,10 @@ export function TopUpModal({ onClose }: { onClose: () => void }) {
     getPaymentMethods()
       .then((m) => {
         setMethods(m);
-        if (m.length > 0) setMethodCode(m[0].code);
+        if (m.length > 0) {
+          setMethodCode(m[0].code);
+          setAmount(defaultAmountFor(m[0]));
+        }
       })
       .catch((err) => console.error("Failed to load payment methods", err))
       .finally(() => setLoadingMethods(false));
@@ -140,7 +147,10 @@ export function TopUpModal({ onClose }: { onClose: () => void }) {
               {methods.map((m) => (
                 <button
                   key={m.code}
-                  onClick={() => setMethodCode(m.code)}
+                  onClick={() => {
+                    setMethodCode(m.code);
+                    setAmount(defaultAmountFor(m));
+                  }}
                   className={`rounded-lg border px-3 py-2.5 text-sm font-medium transition ${
                     m.code === methodCode
                       ? "border-brand bg-brand/10 text-foreground"
