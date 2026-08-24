@@ -183,6 +183,9 @@ export function TopUpModal({ onClose }: { onClose: () => void }) {
             {isCrypto && method?.rate && value > 0 && (
               <p className="mt-1.5 text-sm font-semibold text-brand">
                 ≈ {Math.round(value * method.rate * 100) / 100} {t("common.currency")}
+                <span className="ml-1.5 text-xs font-normal text-muted">
+                  (1 {method.currency} = {method.rate} {t("common.currency")})
+                </span>
               </p>
             )}
 
@@ -228,6 +231,9 @@ export function TopUpModal({ onClose }: { onClose: () => void }) {
                   {isCrypto && method?.rate && (
                     <p className="text-xs text-brand">
                       ≈ {Math.round(value * method.rate * 100) / 100} {t("common.currency")}
+                      <span className="ml-1 text-muted">
+                        (1 {method.currency} = {method.rate} {t("common.currency")})
+                      </span>
                     </p>
                   )}
                 </div>
