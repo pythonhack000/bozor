@@ -336,6 +336,7 @@ function mapPaymentMethodRow(row: Record<string, unknown>): PaymentMethod {
     network: (row.network as string) ?? undefined,
     instructions: (row.instructions as LocalizedText) ?? undefined,
     currency: (row.currency as string) ?? "TJS",
+    rate: row.rate != null ? Number(row.rate) : undefined,
     minAmount: Number(row.min_amount),
     maxAmount: Number(row.max_amount),
     enabled: Boolean(row.enabled),
@@ -395,6 +396,7 @@ function mapDepositRow(row: Record<string, unknown>): DepositRequest {
     amount: Number(row.amount),
     creditedAmount: row.credited_amount != null ? Number(row.credited_amount) : undefined,
     currency: (row.currency as string) ?? undefined,
+    rate: row.rate != null ? Number(row.rate) : undefined,
     referenceCode: (row.reference_code as string) ?? "",
     proof: (row.proof as string) ?? undefined,
     status: (row.status as DepositRequest["status"]) ?? "pending",
@@ -488,6 +490,7 @@ export async function adminUpdatePaymentMethod(input: {
   minAmount: number;
   maxAmount: number;
   enabled: boolean;
+  rate?: number;
 }): Promise<void> {
   const { error } = await supabase.rpc("admin_update_payment_method", {
     p_code: input.code,
@@ -496,6 +499,7 @@ export async function adminUpdatePaymentMethod(input: {
     p_min_amount: input.minAmount,
     p_max_amount: input.maxAmount,
     p_enabled: input.enabled,
+    p_rate: input.rate ?? null,
   });
   if (error) throw error;
 }

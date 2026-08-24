@@ -723,6 +723,8 @@ create table if not exists public.payment_methods (
   details text not null default '',            -- requisites shown to the buyer
   network text,                                -- e.g. 'TRC20' / 'BEP20' for crypto
   instructions jsonb,                          -- localized extra note (optional)
+  currency text not null default 'TJS',        -- unit the buyer types the amount in
+  rate numeric,                                -- smn per unit of `currency`, for non-TJS methods
   min_amount numeric not null default 10,
   max_amount numeric not null default 100000,
   enabled boolean not null default false,      -- hidden until the operator fills details
@@ -917,6 +919,7 @@ returns table (
   amount numeric,
   credited_amount numeric,
   currency text,
+  rate numeric,
   reference_code text,
   proof text,
   status text,
@@ -936,7 +939,7 @@ begin
   -- history, not just the live queue; pending sorts first, then newest.
   return query
     select d.id, d.profile_id, pr.name, d.method_code, pm.name, d.amount, d.credited_amount,
-           pm.currency, d.reference_code, d.proof, d.status, d.admin_note, d.created_at
+           pm.currency, pm.rate, d.reference_code, d.proof, d.status, d.admin_note, d.created_at
     from public.deposit_requests d
     join public.profiles pr on pr.id = d.profile_id
     join public.payment_methods pm on pm.code = d.method_code
@@ -1105,13 +1108,17 @@ begin
 end;
 $$;
 
+-- p_rate is the smn-per-unit exchange rate for non-TJS (crypto) methods,
+-- set once here so deposit approval can pre-fill the credit amount instead
+-- of the admin typing it from scratch on every request.
 create or replace function public.admin_update_payment_method(
   p_code text,
   p_details text,
   p_network text,
   p_min_amount numeric,
   p_max_amount numeric,
-  p_enabled boolean
+  p_enabled boolean,
+  p_rate numeric default null
 )
 returns void
 language plpgsql
@@ -1125,13 +1132,17 @@ begin
   if p_min_amount is null or p_max_amount is null or p_min_amount <= 0 or p_max_amount < p_min_amount then
     raise exception 'invalid amount range';
   end if;
+  if p_rate is not null and p_rate <= 0 then
+    raise exception 'invalid rate';
+  end if;
 
   update public.payment_methods
     set details = coalesce(trim(p_details), ''),
         network = nullif(trim(coalesce(p_network, '')), ''),
         min_amount = p_min_amount,
         max_amount = p_max_amount,
-        enabled = coalesce(p_enabled, false)
+        enabled = coalesce(p_enabled, false),
+        rate = p_rate
     where code = p_code;
   if not found then
     raise exception 'method not found';
@@ -1144,25 +1155,25 @@ revoke execute on function public.request_deposit(text, numeric, text) from publ
 revoke execute on function public.submit_deposit_proof(uuid, text) from public;
 revoke execute on function public.request_withdrawal(text, numeric, text) from public;
 revoke execute on function public.admin_list_deposits() from public;
-revoke execute on function public.admin_approve_deposit(uuid) from public;
+revoke execute on function public.admin_approve_deposit(uuid, numeric) from public;
 revoke execute on function public.admin_reject_deposit(uuid, text) from public;
 revoke execute on function public.admin_list_withdrawals() from public;
 revoke execute on function public.admin_approve_withdrawal(uuid) from public;
 revoke execute on function public.admin_reject_withdrawal(uuid, text) from public;
 revoke execute on function public.admin_list_payment_methods() from public;
-revoke execute on function public.admin_update_payment_method(text, text, text, numeric, numeric, boolean) from public;
+revoke execute on function public.admin_update_payment_method(text, text, text, numeric, numeric, boolean, numeric) from public;
 
 grant execute on function public.request_deposit(text, numeric, text) to authenticated;
 grant execute on function public.submit_deposit_proof(uuid, text) to authenticated;
 grant execute on function public.request_withdrawal(text, numeric, text) to authenticated;
 grant execute on function public.admin_list_deposits() to authenticated;
-grant execute on function public.admin_approve_deposit(uuid) to authenticated;
+grant execute on function public.admin_approve_deposit(uuid, numeric) to authenticated;
 grant execute on function public.admin_reject_deposit(uuid, text) to authenticated;
 grant execute on function public.admin_list_withdrawals() to authenticated;
 grant execute on function public.admin_approve_withdrawal(uuid) to authenticated;
 grant execute on function public.admin_reject_withdrawal(uuid, text) to authenticated;
 grant execute on function public.admin_list_payment_methods() to authenticated;
-grant execute on function public.admin_update_payment_method(text, text, text, numeric, numeric, boolean) to authenticated;
+grant execute on function public.admin_update_payment_method(text, text, text, numeric, numeric, boolean, numeric) to authenticated;
 
 -- ============================================================================
 -- ORDER HANDOFF: explicit seller "delivered the account" step

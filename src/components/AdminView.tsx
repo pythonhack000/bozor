@@ -172,6 +172,7 @@ export function AdminView() {
     minAmount: number;
     maxAmount: number;
     enabled: boolean;
+    rate?: number;
   }) => {
     await adminUpdatePaymentMethod(input);
     await load();
@@ -328,6 +329,7 @@ export function AdminView() {
                     {d.currency && d.currency !== "TJS" ? (
                       <CryptoApproveRow
                         id={d.id}
+                        suggestedAmount={d.rate ? d.amount * d.rate : undefined}
                         resolvingId={resolvingId}
                         rejectingId={rejectingId}
                         rejectNote={rejectNote}
@@ -559,6 +561,7 @@ function RequestHistory({
 
 function CryptoApproveRow({
   id,
+  suggestedAmount,
   resolvingId,
   rejectingId,
   rejectNote,
@@ -569,6 +572,7 @@ function CryptoApproveRow({
   onReject,
 }: {
   id: string;
+  suggestedAmount?: number;
   resolvingId: string | null;
   rejectingId: string | null;
   rejectNote: string;
@@ -580,7 +584,9 @@ function CryptoApproveRow({
 }) {
   const { t } = useI18n();
   const busy = resolvingId === id;
-  const [creditAmount, setCreditAmount] = useState("");
+  const [creditAmount, setCreditAmount] = useState(
+    suggestedAmount != null ? String(Math.round(suggestedAmount * 100) / 100) : ""
+  );
   const amount = Number(creditAmount);
 
   if (rejectingId === id) {
@@ -625,6 +631,7 @@ function CryptoApproveRow({
           placeholder={t("common.currency")}
           className="mt-1 w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground focus:border-brand/50 focus:outline-none"
         />
+        {suggestedAmount != null && <p className="mt-1 text-xs text-muted">{t("admin.creditAmountByRate")}</p>}
       </div>
       <div className="flex flex-wrap gap-2">
         <button
@@ -737,6 +744,7 @@ function MethodEditor({
     minAmount: number;
     maxAmount: number;
     enabled: boolean;
+    rate?: number;
   }) => Promise<void>;
 }) {
   const { t, tl } = useI18n();
@@ -744,8 +752,10 @@ function MethodEditor({
   const [network, setNetwork] = useState(method.network ?? "");
   const [minAmount, setMinAmount] = useState(String(method.minAmount));
   const [maxAmount, setMaxAmount] = useState(String(method.maxAmount));
+  const [rate, setRate] = useState(method.rate != null ? String(method.rate) : "");
   const [enabled, setEnabled] = useState(method.enabled);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const isCrypto = method.currency !== "TJS";
 
   const save = async () => {
     setStatus("saving");
@@ -757,6 +767,7 @@ function MethodEditor({
         minAmount: Number(minAmount),
         maxAmount: Number(maxAmount),
         enabled,
+        rate: isCrypto && rate.trim() ? Number(rate) : undefined,
       });
       setStatus("saved");
       setTimeout(() => setStatus("idle"), 2000);
@@ -818,6 +829,22 @@ function MethodEditor({
           />
         </div>
       </div>
+
+      {isCrypto && (
+        <div className="mt-3">
+          <label className="block text-xs font-medium text-muted">
+            {t("admin.reqRate")} (1 {method.currency} = ? {t("common.currency")})
+          </label>
+          <input
+            type="number"
+            value={rate}
+            onChange={(e) => setRate(e.target.value)}
+            placeholder="10.9"
+            className="mt-1.5 w-full rounded-lg border border-border bg-surface-2 px-3 py-2.5 text-sm text-foreground focus:border-brand/50 focus:outline-none"
+          />
+          <p className="mt-1 text-xs text-muted">{t("admin.reqRateNote")}</p>
+        </div>
+      )}
 
       {status === "error" && <p className="mt-2 text-xs text-danger">{t("profile.saveError")}</p>}
 
