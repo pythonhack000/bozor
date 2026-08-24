@@ -1,13 +1,23 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
 import { useCategories } from "@/lib/categories-context";
+import { getPaymentMethods } from "@/lib/db";
+import type { PaymentMethod } from "@/lib/types";
 
 export function Footer() {
   const { t, tl } = useI18n();
   const { categories } = useCategories();
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+
+  useEffect(() => {
+    getPaymentMethods()
+      .then(setPaymentMethods)
+      .catch((err) => console.error("Failed to load payment methods", err));
+  }, []);
   return (
     <footer className="mt-16 border-t border-border bg-surface/40">
       <div className="mx-auto max-w-7xl px-4 py-12 lg:px-6">
@@ -53,16 +63,18 @@ export function Footer() {
             </ul>
           </div>
 
-          <div>
-            <h4 className="mb-3 text-sm font-semibold text-foreground">{t("footer.payments")}</h4>
-            <div className="flex flex-wrap gap-2 text-xs text-muted">
-              {["Корти Миллӣ", "Alif", "Eskhata", "USDT"].map((p) => (
-                <span key={p} className="rounded-md border border-border px-2 py-1">
-                  {p}
-                </span>
-              ))}
+          {paymentMethods.length > 0 && (
+            <div>
+              <h4 className="mb-3 text-sm font-semibold text-foreground">{t("footer.payments")}</h4>
+              <div className="flex flex-wrap gap-2 text-xs text-muted">
+                {paymentMethods.map((p) => (
+                  <span key={p.code} className="rounded-md border border-border px-2 py-1">
+                    {tl(p.name)}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <div className="mt-10 border-t border-border pt-6 text-xs text-muted">

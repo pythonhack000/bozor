@@ -65,8 +65,8 @@ export const dictionaries: Record<Lang, Dict> = {
     "home.ctaTitle": "Есть аккаунты на продажу?",
     "home.ctaSubtitle": "Создайте объявление за 2 минуты и получайте заказы уже сегодня",
     "home.ctaButton": "Разместить объявление",
-    "home.statSellers": "продавцов",
-    "home.statDeals": "сделок с гарантией",
+    "home.statSellers": "Гарантия сделки",
+    "home.statDeals": "Поддержка 24/7",
     "home.statCategories": "категорий",
 
     "catalog.filters": "Фильтры",
@@ -413,8 +413,8 @@ export const dictionaries: Record<Lang, Dict> = {
     "home.ctaTitle": "Аккаунт барои фурӯш доред?",
     "home.ctaSubtitle": "Дар 2 дақиқа эълон гузоред ва аз ҳамин рӯз фармоиш гиред",
     "home.ctaButton": "Эълон гузоштан",
-    "home.statSellers": "фурӯшанда",
-    "home.statDeals": "муомилаи кафолатнок",
+    "home.statSellers": "Кафолати муомила",
+    "home.statDeals": "Дастгирӣ 24/7",
     "home.statCategories": "категория",
 
     "catalog.filters": "Филтрҳо",
@@ -761,8 +761,8 @@ export const dictionaries: Record<Lang, Dict> = {
     "home.ctaTitle": "Got accounts to sell?",
     "home.ctaSubtitle": "Create a listing in 2 minutes and get orders today",
     "home.ctaButton": "Create a listing",
-    "home.statSellers": "sellers",
-    "home.statDeals": "guaranteed deals",
+    "home.statSellers": "Escrow-protected deals",
+    "home.statDeals": "24/7 support",
     "home.statCategories": "categories",
 
     "catalog.filters": "Filters",

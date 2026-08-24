@@ -69,12 +69,8 @@ export default function Home() {
             </div>
 
             <div className="mt-8 flex items-center justify-center gap-6 border-t border-border pt-5 text-sm">
-              <span className="text-muted">
-                <b className="font-semibold text-foreground">1 200+</b> {t("home.statSellers")}
-              </span>
-              <span className="text-muted">
-                <b className="font-semibold text-foreground">45 000+</b> {t("home.statDeals")}
-              </span>
+              <span className="font-semibold text-foreground">{t("home.statSellers")}</span>
+              <span className="font-semibold text-foreground">{t("home.statDeals")}</span>
               <span className="text-muted">
                 <b className="font-semibold text-foreground">
                   {isLoadingCategories ? "–" : categories.length}
