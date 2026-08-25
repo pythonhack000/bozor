@@ -775,6 +775,18 @@ create table if not exists public.withdrawal_requests (
 create index if not exists withdrawal_requests_profile_idx on public.withdrawal_requests(profile_id, created_at desc);
 create index if not exists withdrawal_requests_status_idx on public.withdrawal_requests(status, created_at desc);
 
+-- Remembers a seller's own payout destination per withdrawal method, so
+-- request_withdrawal doesn't require retyping the same wallet/card number
+-- every time — the client pre-fills it and request_withdrawal keeps it
+-- fresh on every use (see the insert ... on conflict inside it below).
+create table if not exists public.payout_destinations (
+  profile_id uuid not null references public.profiles(id) on delete cascade,
+  method_code text not null references public.payment_methods(code),
+  destination text not null,
+  updated_at timestamptz not null default now(),
+  primary key (profile_id, method_code)
+);
+
 -- Extend the wallet ledger with withdrawal events (idempotent: drop + recreate).
 alter table public.wallet_transactions drop constraint if exists wallet_transactions_type_check;
 alter table public.wallet_transactions add constraint wallet_transactions_type_check
@@ -797,6 +809,12 @@ create policy "users read own deposit requests" on public.deposit_requests for s
 
 drop policy if exists "users read own withdrawal requests" on public.withdrawal_requests;
 create policy "users read own withdrawal requests" on public.withdrawal_requests for select using (auth.uid() = profile_id);
+
+-- Writes only ever happen through request_withdrawal() (security definer),
+-- never directly from the client, so no insert/update policy is needed.
+alter table public.payout_destinations enable row level security;
+drop policy if exists "users manage own payout destinations" on public.payout_destinations;
+create policy "users manage own payout destinations" on public.payout_destinations for select using (auth.uid() = profile_id);
 
 -- Short human-readable reference code, e.g. "DEP-A1B2C3".
 create or replace function public.gen_reference_code()
@@ -903,6 +921,10 @@ begin
 
   insert into public.wallet_transactions (profile_id, amount, type)
   values (auth.uid(), -p_amount, 'withdrawal');
+
+  insert into public.payout_destinations (profile_id, method_code, destination)
+  values (auth.uid(), p_method_code, trim(p_destination))
+  on conflict (profile_id, method_code) do update set destination = excluded.destination, updated_at = now();
 
   return v_id;
 end;

@@ -442,6 +442,19 @@ export async function getMyWithdrawals(userId: string): Promise<WithdrawalReques
   return (data ?? []).map(mapWithdrawalRow);
 }
 
+// Remembered per method from the seller's own past withdrawals — lets the UI
+// pre-fill the destination instead of asking them to retype it every time.
+export async function getMyPayoutDestinations(userId: string): Promise<Record<string, string>> {
+  const { data, error } = await supabase
+    .from("payout_destinations")
+    .select("method_code, destination")
+    .eq("profile_id", userId);
+  if (error) throw error;
+  const map: Record<string, string> = {};
+  for (const row of data ?? []) map[row.method_code as string] = row.destination as string;
+  return map;
+}
+
 // ---- Admin: payment moderation + requisites ------------------------------
 
 export async function adminListDeposits(): Promise<DepositRequest[]> {

@@ -4,16 +4,19 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Loader2, Banknote, CheckCircle2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n-context";
+import { useAuth } from "@/lib/auth-context";
 import { useWallet } from "@/lib/wallet-context";
-import { getPaymentMethods, requestWithdrawal } from "@/lib/db";
+import { getPaymentMethods, requestWithdrawal, getMyPayoutDestinations } from "@/lib/db";
 import type { PaymentMethod } from "@/lib/types";
 
 export function WithdrawModal({ onClose }: { onClose: () => void }) {
   const { t, tl } = useI18n();
+  const { user } = useAuth();
   const { balance, refresh } = useWallet();
 
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [loadingMethods, setLoadingMethods] = useState(true);
+  const [savedDestinations, setSavedDestinations] = useState<Record<string, string>>({});
   const [methodCode, setMethodCode] = useState("");
   const [amount, setAmount] = useState("");
   const [destination, setDestination] = useState("");
@@ -21,14 +24,19 @@ export function WithdrawModal({ onClose }: { onClose: () => void }) {
   const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
 
   useEffect(() => {
-    getPaymentMethods()
-      .then((m) => {
+    if (!user) return;
+    Promise.all([getPaymentMethods(), getMyPayoutDestinations(user.id)])
+      .then(([m, saved]) => {
         setMethods(m);
-        if (m.length > 0) setMethodCode(m[0].code);
+        setSavedDestinations(saved);
+        if (m.length > 0) {
+          setMethodCode(m[0].code);
+          setDestination(saved[m[0].code] ?? "");
+        }
       })
       .catch((err) => console.error("Failed to load payment methods", err))
       .finally(() => setLoadingMethods(false));
-  }, []);
+  }, [user]);
 
   const method = methods.find((m) => m.code === methodCode) ?? null;
   const value = Number(amount);
@@ -94,7 +102,10 @@ export function WithdrawModal({ onClose }: { onClose: () => void }) {
               {methods.map((m) => (
                 <button
                   key={m.code}
-                  onClick={() => setMethodCode(m.code)}
+                  onClick={() => {
+                    setMethodCode(m.code);
+                    setDestination(savedDestinations[m.code] ?? "");
+                  }}
                   className={`rounded-lg border px-3 py-2.5 text-sm font-medium transition ${
                     m.code === methodCode
                       ? "border-brand bg-brand/10 text-foreground"
@@ -128,6 +139,9 @@ export function WithdrawModal({ onClose }: { onClose: () => void }) {
               placeholder={t("withdraw.destinationPlaceholder")}
               className="mt-2 w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground focus:border-brand/50 focus:outline-none"
             />
+            {savedDestinations[methodCode] && (
+              <p className="mt-1.5 text-xs text-muted">{t("withdraw.destinationSaved")}</p>
+            )}
 
             {value > balance && <p className="mt-3 text-xs text-danger">{t("withdraw.insufficient")}</p>}
             {status === "error" && <p className="mt-3 text-xs text-danger">{t("withdraw.error")}</p>}
